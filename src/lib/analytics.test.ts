@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dueReminders } from '../../api/remind'
+import { dueReminders } from '../../supabase/functions/remind/due'
 import { activeDays, backlog, chapterStats, completion, distribute, overlapping, periodReview, streaks, subjectStats, summarize, totals } from './analytics'
 import { durationBetween, weekStart } from './dates'
 import { seedRecords } from './seed'

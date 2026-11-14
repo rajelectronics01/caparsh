@@ -105,15 +105,4 @@ do $$ begin
 exception when duplicate_object then null; when undefined_object then null;
 end $$;
 
--- ---------------------------------------------------------------------------
--- OPTIONAL: closed-app push alerts. Run separately AFTER deploying to Vercel,
--- replacing the URL and the secret (same value as CRON_SECRET in Vercel).
---
--- create extension if not exists pg_cron;
--- create extension if not exists pg_net;
--- select cron.schedule('parsh-reminders', '*/5 * * * *', $job$
---   select net.http_post(
---     url := 'https://YOUR-APP.vercel.app/api/remind',
---     headers := '{"Authorization": "Bearer YOUR_CRON_SECRET"}'::jsonb
---   );
--- $job$);
+-- Phone reminders are scheduled separately: see supabase/reminders.sql and supabase/functions/remind.

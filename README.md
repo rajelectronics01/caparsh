@@ -28,19 +28,20 @@ With no configuration the app runs in **local mode**: data is saved in the brows
 1. **Supabase** – create a project at supabase.com. In *SQL Editor*, paste and run `supabase/schema.sql`.
 2. In *Authentication → Sign In / Providers → Email*, either turn off "Confirm email" or leave it on and confirm via the e-mail link when signing up.
 3. In *Project Settings → API*, copy the **Project URL** and the **anon public** key.
-4. **Vercel** – import this GitHub repository at vercel.com (framework: Vite). Add environment variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`, then deploy.
+4. **Vercel** – import this GitHub repository at vercel.com (framework: Vite) and deploy. The public Supabase URL, anon key and push key are read from `.env.production`, so no environment variables are needed; variables set in Vercel override that file.
 5. Open the site, create your account, and have your friend create theirs. In *Compare with Friend*, one of you enters the other's friend code.
 
 For local development against Supabase, copy `.env.example` to `.env.local` and fill the two `VITE_SUPABASE_*` values.
 
-### Closed-app alerts (optional)
+### Phone reminders
 
-Without this step, reminders fire only while the app is open. To be alerted when it is closed:
+Reminders are sent by Supabase, not by the website host:
 
-1. Run `npx web-push generate-vapid-keys`.
-2. In Vercel add `VITE_VAPID_PUBLIC_KEY` and `VAPID_PUBLIC_KEY` (the public key), `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`mailto:` your e-mail), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (Supabase → API → service_role; server only), and `CRON_SECRET` (any long random string). Redeploy.
-3. In Supabase SQL Editor run the commented block at the bottom of `supabase/schema.sql`, with your Vercel URL and `CRON_SECRET` filled in. It calls `/api/remind` every 5 minutes.
-4. On each device: *Settings → Daily alerts → Enable alerts on this device*. On iPhone, first *Share → Add to Home Screen* and enable alerts from the installed app.
+- `supabase/functions/remind` is an Edge Function that sends Web Push to every registered device whose reminder time has come.
+- `supabase/reminders.sql` schedules it every 5 minutes with pg_cron.
+- The push private key and the scheduler secret are stored in Supabase (Edge Function secrets and Vault). The public push key is in `.env.production`.
+
+On each phone: open the site, add it to the Home Screen, open it from the Home Screen icon, then *Menu → Settings → Daily alerts → Enable alerts on this device*. On iPhone this works only from the Home Screen icon (iOS 16.4 or later), not from a Safari tab.
 
 ## Syllabus source
 
@@ -63,7 +64,7 @@ src/lib/store.tsx      state, autosave queue, offline retry
 src/lib/backend.ts     storage: Supabase (cloud) or localStorage (local mode)
 src/lib/seed.ts        subjects, faculty and ICAI chapter lists
 src/pages/             one file per screen
-api/remind.ts          push-reminder endpoint (Vercel function)
+supabase/functions/    push-reminder sender (Supabase Edge Function)
 supabase/schema.sql    tables, row-level security, friend linking
 ```
 

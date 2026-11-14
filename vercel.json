@@ -1,4 +1,4 @@
 {
-  "rewrites": [{ "source": "/((?!api/|assets/|sw\\.js|manifest\\.webmanifest|icon).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!assets/|sw\\.js|manifest\\.webmanifest|icon).*)", "destination": "/index.html" }],
   "headers": [{ "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }]
 }
