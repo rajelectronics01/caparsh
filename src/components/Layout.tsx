@@ -90,7 +90,7 @@ function StudyTimer({ onStop }: { onStop: (s: Partial<Session>) => void }) {
           setStart(now)
         }}
       >
-        ▶ Start timer
+        ▶ <span className="max-sm:hidden">Start </span>timer
       </Button>
     )
   const sec = Math.floor((Date.now() - start) / 1000)
@@ -115,7 +115,7 @@ function StudyTimer({ onStop }: { onStop: (s: Partial<Session>) => void }) {
           onStop({ date: toISO(s), start: minToTime(startMin), end: minToTime(startMin + mins) })
         }}
       >
-        ■ Stop & log
+        ■ Stop
       </Button>
       <Button
         size="sm"
@@ -126,7 +126,7 @@ function StudyTimer({ onStop }: { onStop: (s: Partial<Session>) => void }) {
           setStart(null)
         }}
       >
-        Discard
+        ✕
       </Button>
     </div>
   )
@@ -144,6 +144,15 @@ export function Layout() {
   const onFire = useCallback((r: { label: string }) => toast(`Reminder: ${r.label}`), [toast])
   useReminders(data.settings, onFire)
   const dark = document.documentElement.dataset.theme === 'dark'
+  const tab = 'flex min-h-16 flex-col items-center justify-center gap-1 text-[10.5px] font-bold uppercase tracking-wide'
+  // Each page starts at the top, and the page behind an open menu does not scroll.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [loc.pathname])
+  useEffect(() => {
+    document.body.style.overflow = open ? 'hidden' : ''
+    return () => void (document.body.style.overflow = '')
+  }, [open])
 
   const nav = (
     <nav className="flex flex-col gap-5 px-3 py-4" onClick={(e) => (e.target as HTMLElement).closest('a') && setOpen(false)}>
@@ -182,31 +191,61 @@ export function Layout() {
         {nav}
       </aside>
       {open && (
-        <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setOpen(false)}>
-          <aside className="h-full w-72 max-w-[85vw] overflow-y-auto border-r-2 border-ink bg-surface" onClick={(e) => e.stopPropagation()}>
-            {brand}
-            {nav}
-          </aside>
+        <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/50 lg:hidden" onClick={() => setOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="Menu" data-menu className="flex max-h-[88dvh] flex-col border-t-2 border-ink bg-bg" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b-2 border-ink bg-hi px-4 py-3 text-hi-ink">
+              <span className="text-base font-bold uppercase">Menu</span>
+              <button aria-label="Close menu" onClick={() => setOpen(false)} className="press grid size-10 place-items-center border-2 border-ink bg-surface font-bold text-ink">
+                ✕
+              </button>
+            </div>
+            <div className="overflow-y-auto overscroll-contain px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-4" onClick={(e) => (e.target as HTMLElement).closest('a') && setOpen(false)}>
+              {NAV.map((g) => (
+                <div key={g.group || 'x'} className="mb-4">
+                  {g.group && <div className="mb-2 text-[11px] font-bold uppercase tracking-widest text-ink-3">{g.group}</div>}
+                  <div className="grid grid-cols-2 gap-2">
+                    {g.items.map((i) => (
+                      <NavLink key={i.to} to={i.to} end={i.to === '/'} className={({ isActive }) => cx('press flex min-h-14 items-center justify-between gap-2 border-2 border-ink px-3 text-[13px] font-bold uppercase leading-tight', isActive ? 'bg-ink text-bg' : 'bg-surface text-ink')}>
+                        {i.label.replace(' with Friend', '').replace('Daily Study ', 'Study ')}
+                        {i.to === '/backlog' && sum.backlog.length > 0 && <span className="tnum border-2 border-ink bg-warn-soft px-1.5 text-xs text-warn">{sum.backlog.length}</span>}
+                      </NavLink>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div className="flex items-center justify-between gap-2 border-t-2 border-ink pt-4">
+                <span className="truncate text-sm font-bold">{user?.name}</span>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => setTheme(dark ? 'light' : 'dark')}>
+                    {dark ? 'Light mode' : 'Dark mode'}
+                  </Button>
+                  <Button size="sm" onClick={() => void backend.signOut()}>
+                    {backend.mode === 'local' ? 'Switch profile' : 'Sign out'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b-2 border-ink bg-bg px-4 py-2.5 sm:px-6">
-          <button aria-label="Open menu" className="press grid size-10 place-items-center border-2 border-ink bg-surface font-bold lg:hidden" onClick={() => setOpen(true)}>
-            ☰
-          </button>
-          <span className="font-bold uppercase lg:hidden">Parsh CA</span>
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b-2 border-ink bg-bg px-4 py-2 sm:px-6">
+          <NavLink to="/" className="flex min-w-0 items-center gap-2 lg:hidden">
+            <img src="/icon.svg" alt="" className="size-8 shrink-0 border-2 border-ink" />
+            <span className="truncate text-sm font-bold uppercase">Parsh CA</span>
+          </NavLink>
           <div className="hidden lg:block">
             <SyncChip />
           </div>
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="ml-auto flex shrink-0 items-center justify-end gap-2">
             <StudyTimer onStop={setQuick} />
-            <Button size="sm" variant="primary" className="max-sm:hidden" onClick={() => setQuick({})}>
+            <Button size="sm" variant="primary" className="max-lg:hidden" onClick={() => setQuick({})}>
               + Log session
             </Button>
-            <Button size="sm" variant="ghost" aria-label="Toggle dark mode" onClick={() => setTheme(dark ? 'light' : 'dark')} title={`Theme: ${theme}`}>
+            <Button size="sm" variant="ghost" className="max-lg:hidden" aria-label="Toggle dark mode" onClick={() => setTheme(dark ? 'light' : 'dark')} title={`Theme: ${theme}`}>
               {dark ? '☀' : '☾'}
             </Button>
-            <div className="hidden items-center gap-2 sm:flex">
+            <div className="hidden items-center gap-2 lg:flex">
               <span className="text-sm text-ink-2">{user?.name}</span>
               <Button size="sm" variant="ghost" onClick={() => void backend.signOut()}>
                 {backend.mode === 'local' ? 'Switch profile' : 'Sign out'}
@@ -214,33 +253,34 @@ export function Layout() {
             </div>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 pb-28 pt-6 sm:px-6 lg:pb-8">
+        <main className="mx-auto w-full max-w-[1280px] flex-1 px-3 pb-28 pt-4 sm:px-6 sm:pt-6 lg:pb-8">
           <div className="mb-3 lg:hidden">
             <SyncChip />
           </div>
           <Outlet context={{ quickLog: (s) => setQuick(s ?? {}) } satisfies Shell} />
         </main>
       </div>
-      <nav aria-label="Quick navigation" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t-2 border-ink bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
+      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-[45] grid grid-cols-5 border-t-2 border-ink bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
         {[
-          { to: '/', label: 'Home' },
-          { to: '/log', label: 'Log' },
+          { to: '/', label: 'Home', icon: '⌂' },
+          { to: '/log', label: 'Log', icon: '≡' },
         ].map((i) => (
-          <NavLink key={i.to} to={i.to} end className={({ isActive }) => cx('grid min-h-14 place-items-center text-[11px] font-bold uppercase tracking-wide', isActive ? 'bg-ink text-bg' : 'text-ink')}>
+          <NavLink key={i.to} to={i.to} end onClick={() => setOpen(false)} className={({ isActive }) => cx(tab, isActive && !open ? 'bg-ink text-bg' : 'text-ink')}>
+            <span aria-hidden className="text-xl leading-none">{i.icon}</span>
             {i.label}
           </NavLink>
         ))}
-        <button aria-label="Log study" onClick={() => setQuick({})} className="grid min-h-14 place-items-center border-x-2 border-ink bg-hi text-3xl font-bold leading-none text-hi-ink">
+        <button aria-label="Log study" onClick={() => (setOpen(false), setQuick({}))} className="grid min-h-16 place-items-center border-x-2 border-ink bg-hi text-4xl font-bold leading-none text-hi-ink active:bg-ink active:text-bg">
           +
         </button>
-        {[
-          { to: '/syllabus', label: 'Syllabus' },
-          { to: '/planner', label: 'Plan' },
-        ].map((i) => (
-          <NavLink key={i.to} to={i.to} className={({ isActive }) => cx('grid min-h-14 place-items-center text-[11px] font-bold uppercase tracking-wide', isActive ? 'bg-ink text-bg' : 'text-ink')}>
-            {i.label}
-          </NavLink>
-        ))}
+        <NavLink to="/syllabus" onClick={() => setOpen(false)} className={({ isActive }) => cx(tab, isActive && !open ? 'bg-ink text-bg' : 'text-ink')}>
+          <span aria-hidden className="text-xl leading-none">✓</span>
+          Syllabus
+        </NavLink>
+        <button aria-expanded={open} aria-label={open ? 'Close menu' : 'Menu'} onClick={() => setOpen(!open)} className={cx(tab, open || !['/', '/log', '/syllabus'].includes(loc.pathname) ? 'bg-ink text-bg' : 'text-ink')}>
+          <span aria-hidden className="text-xl leading-none">{open ? '✕' : '☰'}</span>
+          Menu
+        </button>
       </nav>
       {quick && <QuickLog initial={quick} onClose={() => setQuick(null)} onDetails={(s) => (setQuick(null), setForm(s))} />}
       {form && <SessionForm initial={form} onClose={() => setForm(null)} />}

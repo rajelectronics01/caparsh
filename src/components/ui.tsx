@@ -161,7 +161,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
 
 export function Seg<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { id: T; label: string }[] }) {
   return (
-    <div className="inline-flex max-w-full overflow-x-auto border-2 border-ink bg-surface">
+    <div className="inline-flex max-w-full flex-wrap border-2 border-ink bg-surface">
       {options.map((o) => (
         <button key={o.id} onClick={() => onChange(o.id)} className={cx('min-h-8 whitespace-nowrap px-3 text-[12px] font-bold uppercase tracking-wide', value === o.id ? 'bg-ink text-bg' : 'text-ink-2')}>
           {o.label}
@@ -198,7 +198,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4" aria-live="polite">
+      <div className="pointer-events-none fixed inset-x-0 z-[60] flex flex-col items-center gap-2 px-4 max-lg:top-16 lg:bottom-4" aria-live="polite">
         {items.map((i) => (
           <div key={i.id} className={cx('hard border-2 border-ink px-4 py-2.5 text-sm font-bold', i.tone === 'bad' ? 'bg-bad-soft text-bad' : 'bg-hi text-hi-ink')}>
             {i.msg}

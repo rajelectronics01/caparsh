@@ -207,7 +207,33 @@ export default function Tests() {
           {rows.length === 0 ? (
             <Empty title={data.tests.length ? 'No tests match these filters' : 'No tests recorded yet'} />
           ) : (
-            <table className="tbl min-w-[860px]">
+            <>
+            <ul className="divide-y divide-line md:hidden">
+              {rows.map((t) => (
+                <li key={t.id} className="flex gap-3 py-3">
+                  <span className="w-2 shrink-0" style={{ background: `var(--s${subject(t.subjectId)?.slot ?? 1})` }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-sm font-bold uppercase">
+                        {subject(t.subjectId)?.short} · {t.type}
+                      </span>
+                      <span className="tnum shrink-0 text-base font-bold">{t.totalMarks > 0 ? pct((100 * t.marks) / t.totalMarks) : t.attempted ? pct((100 * t.correct) / t.attempted) : '—'}</span>
+                    </div>
+                    <div className="truncate text-[13px] text-ink-2">{chapter(t.chapterId)?.name ?? 'Whole subject'}</div>
+                    <div className="tnum text-xs text-ink-3">
+                      {[fmtDate(t.date), t.totalMarks > 0 ? `${t.marks}/${t.totalMarks} marks` : '', t.attempted ? `${t.correct}/${t.attempted} correct` : '', t.timeMin ? fmtHM(t.timeMin) : ''].filter(Boolean).join(' · ')}
+                    </div>
+                    <div className="mt-1.5 flex gap-1">
+                      <Button size="sm" onClick={() => setForm(t)}>
+                        Edit
+                      </Button>
+                      <ConfirmButton onConfirm={() => del('tests', t.id)} />
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <table className="tbl hidden min-w-[860px] md:table">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -253,6 +279,7 @@ export default function Tests() {
                 ))}
               </tbody>
             </table>
+            </>
           )}
         </div>
       </Card>

@@ -149,7 +149,33 @@ export default function Revision() {
               <Empty title="No chapters in this view" />
             </div>
           ) : (
-            <table className="tbl min-w-[900px]">
+            <>
+            <ul className="divide-y divide-line md:hidden">
+              {rows.map((c) => (
+                <li key={c.chapter.id} className="space-y-2 px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold">{c.chapter.name}</div>
+                      <div className="text-xs text-ink-3">
+                        {subject(c.chapter.subjectId)?.short} · lectures {Math.round(c.lecturePct)}%{c.chapter.nextRevisionDate ? ` · next ${fmtDate(c.chapter.nextRevisionDate)}` : ''}
+                      </div>
+                    </div>
+                    {isDue(c) && <Badge tone="warn">Due</Badge>}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[0, 1, 2].map((i) => {
+                      const r = c.chapter.revisions[i]
+                      return (
+                        <Button key={i} variant={r.done ? 'primary' : 'soft'} disabled={!r.done && i > 0 && !c.chapter.revisions[i - 1].done} onClick={() => setForm({ c, cycle: i })}>
+                          R{i + 1} {r.done ? '✓' : ''}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <table className="tbl hidden min-w-[900px] md:table">
               <thead>
                 <tr>
                   <th>Chapter</th>
@@ -209,6 +235,7 @@ export default function Revision() {
                 ))}
               </tbody>
             </table>
+            </>
           )}
         </div>
       </Card>

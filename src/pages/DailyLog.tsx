@@ -11,7 +11,35 @@ export function SessionTable({ rows, onEdit, showDate }: { rows: Session[]; onEd
   const { subject, chapter } = useSubjects()
   return (
     <div className="overflow-x-auto">
-      <table className="tbl min-w-[720px]">
+      <ul className="divide-y divide-line md:hidden">
+        {rows.map((s) => {
+          const sub = subject(s.subjectId)
+          return (
+            <li key={s.id} className="flex gap-3 py-3">
+              <span className="w-2 shrink-0" style={{ background: `var(--s${sub?.slot ?? 1})` }} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="truncate text-sm font-bold uppercase">
+                    {sub?.short ?? 'Deleted subject'} · {activityLabel(s.activity)}
+                  </span>
+                  <span className="tnum shrink-0 text-base font-bold">{fmtHM(s.durationMin)}</span>
+                </div>
+                <div className="truncate text-[13px] text-ink-2">{chapter(s.chapterId)?.name ?? 'No specific chapter'}</div>
+                <div className="tnum text-xs text-ink-3">
+                  {[showDate ? fmtDate(s.date) : '', s.start ? `${s.start}–${s.end}` : '', s.lecturesCompleted ? `${s.lecturesCompleted} lec` : '', s.qAttempted ? (s.qCorrect != null ? `${s.qCorrect}/${s.qAttempted} correct` : `${s.qAttempted} attempted`) : '', s.status === 'partial' ? 'partial' : '', s.topic ?? ''].filter(Boolean).join(' · ')}
+                </div>
+                <div className="mt-1.5 flex gap-1">
+                  <Button size="sm" onClick={() => onEdit(s)}>
+                    Edit
+                  </Button>
+                  <ConfirmButton onConfirm={() => del('sessions', s.id)} />
+                </div>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+      <table className="tbl hidden min-w-[720px] md:table">
         <thead>
           <tr>
             {showDate && <th>Date</th>}

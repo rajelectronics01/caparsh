@@ -83,12 +83,12 @@ export default function Syllabus() {
         </Button>
       </PageHeader>
 
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+      <div className="mb-4 grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
         {sum.ss.map((s) => (
-          <button key={s.subject.id} onClick={() => setParams({ s: s.subject.id })} className={cx('press inline-flex min-h-10 shrink-0 items-center gap-2 border-2 px-3 text-sm font-bold uppercase', s.subject.id === sid ? 'border-ink bg-hi font-bold text-hi-ink' : 'border-ink bg-surface text-ink')}>
-            <Dot slot={s.subject.slot} />
-            {s.subject.short}
-            <span className="tnum text-xs opacity-70">{Math.round(s.completion)}%</span>
+          <button key={s.subject.id} onClick={() => setParams({ s: s.subject.id })} className={cx('press inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 border-2 px-1 text-[12px] font-bold uppercase sm:flex-row sm:gap-2 sm:px-3 sm:text-sm', s.subject.id === sid ? 'border-ink bg-hi font-bold text-hi-ink' : 'border-ink bg-surface text-ink')}>
+            <span className="max-sm:hidden"><Dot slot={s.subject.slot} /></span>
+            <span className="max-w-full truncate">{s.subject.short}</span>
+            <span className="tnum text-[11px] opacity-70">{Math.round(s.completion)}%</span>
           </button>
         ))}
       </div>

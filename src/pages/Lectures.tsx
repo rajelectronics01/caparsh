@@ -55,7 +55,33 @@ export default function Lectures() {
               </button>
               {isOpen && (
                 <div className="overflow-x-auto border-t border-line">
-                  <table className="tbl min-w-[640px]">
+                  <ul className="divide-y divide-line md:hidden">
+                    {rows.map((c) => (
+                      <li key={c.chapter.id} className="space-y-2 px-4 py-3">
+                        <div className="text-sm font-bold">{c.chapter.name}</div>
+                        <Progress value={c.lecturePct} color={`var(--s${s.subject.slot})`} />
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <label className="inline-flex items-center gap-2 text-xs font-bold uppercase">
+                            Total
+                            <input type="number" min="0" inputMode="numeric" className="inp tnum w-16! min-h-10! py-1!" value={c.chapter.totalLectures || ''} placeholder="0" onChange={(e) => put('chapters', { ...c.chapter, totalLectures: Math.max(0, Math.round(num(e.target.value))) })} />
+                          </label>
+                          <div className="inline-flex items-center gap-2">
+                            <Button aria-label={`Remove a lecture from ${c.chapter.name}`} disabled={c.lecturesDone <= 0} onClick={() => put('chapters', markLecture(c.chapter, -1))}>
+                              −
+                            </Button>
+                            <span className="tnum min-w-12 text-center font-bold">
+                              {c.lecturesDone}/{c.chapter.totalLectures}
+                            </span>
+                            <Button variant="primary" aria-label={`Mark a lecture done for ${c.chapter.name}`} disabled={c.chapter.totalLectures > 0 && c.lecturesDone >= c.chapter.totalLectures} onClick={() => put('chapters', markLecture(c.chapter, 1))}>
+                              +
+                            </Button>
+                          </div>
+                        </div>
+                        {c.lecturesLeft > 0 && <div className="tnum text-xs text-ink-3">{c.lecturesLeft} left · ≈ {fmtHM(c.lecturesLeft * s.avgLectureMin)}</div>}
+                      </li>
+                    ))}
+                  </ul>
+                  <table className="tbl hidden min-w-[640px] md:table">
                     <thead>
                       <tr>
                         <th>Chapter</th>
