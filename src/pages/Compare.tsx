@@ -70,6 +70,18 @@ export default function Compare() {
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [refreshFriends])
+  // Realtime pushes changes when the connection allows it; this refresh keeps the comparison current when it does not.
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') void refreshFriends().catch(() => {})
+    }
+    const id = setInterval(tick, 15000)
+    document.addEventListener('visibilitychange', tick)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', tick)
+    }
+  }, [refreshFriends])
   const friend = friends.find((f) => f.id === fid) ?? friends[0]
   const fd = friend ? friendData[friend.id] : undefined
   const fs: Summary | null = useMemo(() => (fd ? summarize(fd, t) : null), [fd, t])
@@ -132,7 +144,7 @@ export default function Compare() {
 
   return (
     <>
-      <PageHeader title="Compare with Friend" sub={`Live: ${friend.name}'s numbers refresh as they log. As of ${fmtDate(t)}.`}>
+      <PageHeader title="Compare with Friend" sub={`${friend.name}'s numbers refresh on their own within about 15 seconds. As of ${fmtDate(t)}.`}>
         {friends.length > 1 && (
           <select className="inp w-auto!" aria-label="Friend" value={friend.id} onChange={(e) => setFid(e.target.value)}>
             {friends.map((f) => (
