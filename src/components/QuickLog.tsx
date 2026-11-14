@@ -19,7 +19,9 @@ const DURS = [30, 45, 60, 90, 120, 150, 180]
 const Step = ({ n, title, children }: { n: number; title: string; children: React.ReactNode }) => (
   <div>
     <div className="mb-2 flex items-center gap-2">
-      <span className="tnum grid size-6 place-items-center bg-ink text-xs font-bold text-bg">{n}</span>
+      <span className="tnum grid size-6 place-items-center border-2 border-ink text-xs font-bold text-[var(--on-color)]" style={{ background: `var(--p${n + 1})` }}>
+        {n}
+      </span>
       <span className="text-xs font-bold uppercase tracking-wider">{title}</span>
     </div>
     {children}
@@ -111,7 +113,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
     toast(`Logged ${fmtHM(min)} of ${subjects.find((x) => x.id === subjectId)?.short}`)
     onClose()
   }
-  const chip = (on: boolean) => cx('press min-h-11 border-2 border-ink px-3 text-[13px] font-bold uppercase tracking-wide', on ? 'bg-ink text-bg' : 'bg-surface text-ink')
+  const chip = (on: boolean, color = 'var(--p2)') => ({ className: 'press min-h-11 border-2 border-ink px-3 text-[13px] font-bold uppercase tracking-wide', style: on ? { background: color, color: 'var(--on-color)' } : { background: 'var(--surface)', color: 'var(--ink)' } })
 
   return (
     <Modal title="Log study" onClose={onClose} wide>
@@ -124,9 +126,10 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
                 type="button"
                 aria-pressed={subjectId === s.id}
                 onClick={() => (setSubject(s.id), setChapter(auto(s.id)))}
-                className={cx('press flex min-h-14 flex-col items-stretch border-2 border-ink text-[13px] font-bold uppercase', subjectId === s.id ? 'bg-ink text-bg' : 'bg-surface text-ink')}
+                className={cx('press flex min-h-14 flex-col items-stretch border-2 border-ink text-[13px] font-bold uppercase', subjectId === s.id ? 'bg-ink text-bg' : 'text-ink')}
+                style={subjectId === s.id ? undefined : { background: `color-mix(in srgb, var(--s${s.slot}) 24%, var(--surface))` }}
               >
-                <span className="h-2" style={{ background: `var(--s${s.slot})` }} />
+                <span className="h-3" style={{ background: `var(--s${s.slot})` }} />
                 <span className="flex flex-1 items-center justify-center px-1">{s.short}</span>
               </button>
             ))}
@@ -143,7 +146,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
         <Step n={2} title="What did you do">
           <div className="flex flex-wrap gap-2">
             {ACTS.map((a) => (
-              <button key={a.id} type="button" aria-pressed={activity === a.id} className={chip(activity === a.id)} onClick={() => (setActivity(a.id), setLec(a.id === 'lecture' ? Math.max(1, lec) : 0))}>
+              <button key={a.id} type="button" aria-pressed={activity === a.id} {...chip(activity === a.id)} onClick={() => (setActivity(a.id), setLec(a.id === 'lecture' ? Math.max(1, lec) : 0))}>
                 {a.label}
               </button>
             ))}
@@ -153,7 +156,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
           {!timed && (
             <div className="mb-2 flex flex-wrap gap-2">
               {DURS.map((d) => (
-                <button key={d} type="button" aria-pressed={min === d} className={chip(min === d)} onClick={() => setMin(d)}>
+                <button key={d} type="button" aria-pressed={min === d} {...chip(min === d, 'var(--p3)')} onClick={() => setMin(d)}>
                   {fmtHM(d)}
                 </button>
               ))}

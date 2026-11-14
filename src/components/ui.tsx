@@ -9,12 +9,12 @@ export const num = (v: string | number | undefined, d = 0) => {
 
 export function Card({ title, sub, action, children, className, pad = true }: { title?: ReactNode; sub?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; pad?: boolean }) {
   return (
-    <section className={cx('hard min-w-0 border-2 border-ink bg-surface', className)}>
+    <section className={cx('card hard min-w-0 border-2 border-ink bg-surface', className)}>
       {(title || action) && (
-        <header className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4">
+        <header className="card-head flex flex-wrap items-center justify-between gap-3 px-5 py-2.5">
           <div className="min-w-0">
-            <h2 className="text-[15px] font-bold text-ink">{title}</h2>
-            {sub && <p className="mt-0.5 text-[13px] text-ink-3">{sub}</p>}
+            <h2 className="text-[15px] font-bold">{title}</h2>
+            {sub && <p className="text-[12.5px] font-medium">{sub}</p>}
           </div>
           {action}
         </header>
@@ -26,10 +26,10 @@ export function Card({ title, sub, action, children, className, pad = true }: { 
 
 export function Stat({ label, value, hint, tone }: { label: string; value: ReactNode; hint?: ReactNode; tone?: 'good' | 'warn' | 'bad' }) {
   return (
-    <div className="hard min-w-0 border-2 border-ink bg-surface px-4 py-3.5">
-      <div className="text-[11.5px] font-bold uppercase tracking-wide text-ink-3">{label}</div>
-      <div className={cx('tnum mt-1 text-[22px] font-bold leading-tight break-words', tone === 'good' && 'text-good', tone === 'warn' && 'text-warn', tone === 'bad' && 'text-bad')}>{value}</div>
-      {hint && <div className="mt-0.5 text-[12.5px] text-ink-3">{hint}</div>}
+    <div className={cx('stat hard min-w-0 border-2 border-ink px-4 py-3.5', tone && `stat-${tone}`)}>
+      <div className="stat-sub text-[11.5px] font-bold uppercase tracking-wide">{label}</div>
+      <div className={'tnum mt-1 text-[22px] font-bold leading-tight break-words'}>{value}</div>
+      {hint && <div className="stat-sub mt-0.5 text-[12.5px] font-medium">{hint}</div>}
     </div>
   )
 }
@@ -76,20 +76,21 @@ export function Progress({ value, color, className }: { value: number; color?: s
   const v = Math.max(0, Math.min(100, value))
   return (
     <div className={cx('h-3 w-full overflow-hidden border-2 border-ink bg-surface', className)} role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100}>
-      <div className="h-full" style={{ width: `${v}%`, background: color ?? 'var(--hi)' }} />
+      <div className="fill h-full border-r-2 border-ink" style={{ width: `${v}%`, background: color ?? 'var(--pink)', borderRightWidth: v > 0 && v < 100 ? 2 : 0 }} />
     </div>
   )
 }
 
 export function Ring({ value, size = 132, label, sub }: { value: number; size?: number; label?: string; sub?: string }) {
-  const r = (size - 14) / 2
+  const r = (size - 16) / 2
   const c = 2 * Math.PI * r
   const v = Math.max(0, Math.min(100, value))
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ink)" strokeWidth="14" />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-2)" strokeWidth="10" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ink)" strokeWidth="10" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--pink)" strokeWidth="12" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="tnum text-[26px] font-bold">{label ?? `${v.toFixed(v > 0 && v < 10 ? 1 : 0)}%`}</span>
@@ -104,7 +105,7 @@ const TONES = {
   good: 'bg-good-soft text-good',
   warn: 'bg-warn-soft text-warn',
   bad: 'bg-bad-soft text-bad',
-  accent: 'bg-hi text-hi-ink',
+  accent: 'bg-[var(--p3)] text-[var(--on-color)]',
 }
 export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: keyof typeof TONES }) {
   return <span className={cx('inline-flex items-center whitespace-nowrap border-2 border-ink px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide', TONES[tone])}>{children}</span>
@@ -130,8 +131,10 @@ export function PageHeader({ title, sub, children }: { title: string; sub?: stri
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-[28px] font-bold leading-none tracking-tight">{title}</h1>
-        {sub && <p className="mt-0.5 text-sm text-ink-3">{sub}</p>}
+        <h1 className="text-[30px] font-bold leading-tight tracking-tight">
+          <span className="mark">{title}</span>
+        </h1>
+        {sub && <p className="mt-1 text-sm text-ink-2">{sub}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </div>

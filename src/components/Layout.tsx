@@ -205,7 +205,7 @@ export function Layout() {
                   {g.group && <div className="mb-2 text-[11px] font-bold uppercase tracking-widest text-ink-3">{g.group}</div>}
                   <div className="grid grid-cols-2 gap-2">
                     {g.items.map((i) => (
-                      <NavLink key={i.to} to={i.to} end={i.to === '/'} className={({ isActive }) => cx('press flex min-h-14 items-center justify-between gap-2 border-2 border-ink px-3 text-[13px] font-bold uppercase leading-tight', isActive ? 'bg-ink text-bg' : 'bg-surface text-ink')}>
+                      <NavLink key={i.to} to={i.to} end={i.to === '/'} className={({ isActive }) => cx('tile press flex min-h-14 items-center justify-between gap-2 border-2 border-ink px-3 text-[13px] font-bold uppercase leading-tight', isActive && 'on')}>
                         {i.label.replace(' with Friend', '').replace('Daily Study ', 'Study ')}
                         {i.to === '/backlog' && sum.backlog.length > 0 && <span className="tnum border-2 border-ink bg-warn-soft px-1.5 text-xs text-warn">{sum.backlog.length}</span>}
                       </NavLink>
@@ -229,7 +229,7 @@ export function Layout() {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b-2 border-ink bg-bg px-4 py-2 sm:px-6">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b-2 border-ink bg-surface px-4 py-2 sm:px-6">
           <NavLink to="/" className="flex min-w-0 items-center gap-2 lg:hidden">
             <img src="/icon.svg" alt="" className="size-8 shrink-0 border-2 border-ink" />
             <span className="truncate text-sm font-bold uppercase">Parsh CA</span>
@@ -265,7 +265,7 @@ export function Layout() {
           { to: '/', label: 'Home', icon: '⌂' },
           { to: '/log', label: 'Log', icon: '≡' },
         ].map((i) => (
-          <NavLink key={i.to} to={i.to} end onClick={() => setOpen(false)} className={({ isActive }) => cx(tab, isActive && !open ? 'bg-ink text-bg' : 'text-ink')}>
+          <NavLink key={i.to} to={i.to} end onClick={() => setOpen(false)} className={({ isActive }) => cx(tab, isActive && !open ? 'bg-[var(--p3)] text-[var(--on-color)]' : 'text-ink')}>
             <span aria-hidden className="text-xl leading-none">{i.icon}</span>
             {i.label}
           </NavLink>
@@ -273,11 +273,11 @@ export function Layout() {
         <button aria-label="Log study" onClick={() => (setOpen(false), setQuick({}))} className="grid min-h-16 place-items-center border-x-2 border-ink bg-hi text-4xl font-bold leading-none text-hi-ink active:bg-ink active:text-bg">
           +
         </button>
-        <NavLink to="/syllabus" onClick={() => setOpen(false)} className={({ isActive }) => cx(tab, isActive && !open ? 'bg-ink text-bg' : 'text-ink')}>
+        <NavLink to="/syllabus" onClick={() => setOpen(false)} className={({ isActive }) => cx(tab, isActive && !open ? 'bg-[var(--p3)] text-[var(--on-color)]' : 'text-ink')}>
           <span aria-hidden className="text-xl leading-none">✓</span>
           Syllabus
         </NavLink>
-        <button aria-expanded={open} aria-label={open ? 'Close menu' : 'Menu'} onClick={() => setOpen(!open)} className={cx(tab, open || !['/', '/log', '/syllabus'].includes(loc.pathname) ? 'bg-ink text-bg' : 'text-ink')}>
+        <button aria-expanded={open} aria-label={open ? 'Close menu' : 'Menu'} onClick={() => setOpen(!open)} className={cx(tab, open || !['/', '/log', '/syllabus'].includes(loc.pathname) ? 'bg-[var(--p2)] text-[var(--on-color)]' : 'text-ink')}>
           <span aria-hidden className="text-xl leading-none">{open ? '✕' : '☰'}</span>
           Menu
         </button>

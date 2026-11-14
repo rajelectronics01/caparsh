@@ -56,7 +56,7 @@ export default function Overview() {
               <h1 className="mt-1 text-4xl font-bold leading-none sm:text-5xl">Today</h1>
             </div>
             <div className="flex flex-wrap gap-2">
-              <span className="tnum border-2 border-ink bg-surface px-2 py-1 text-xs font-bold uppercase text-ink">{sum.streak.current}-day streak</span>
+              <span className="tnum border-2 border-ink bg-[var(--p4)] px-2 py-1 text-xs font-bold uppercase text-[var(--on-color)]">{sum.streak.current}-day streak</span>
               <span className="tnum border-2 border-ink bg-surface px-2 py-1 text-xs font-bold uppercase text-ink">Best {sum.streak.best}</span>
             </div>
           </div>
@@ -65,7 +65,7 @@ export default function Overview() {
             <span className="tnum pb-1 text-xl font-bold">/ {target}h target</span>
           </div>
           <div className="mt-3 h-5 border-2 border-ink bg-surface" role="progressbar" aria-label="Today against target" aria-valuenow={Math.round(todayPct)} aria-valuemin={0} aria-valuemax={100}>
-            <div className="h-full bg-ink" style={{ width: `${todayPct}%` }} />
+            <div className="fill h-full bg-[var(--pink)]" style={{ width: `${todayPct}%`, borderRight: todayPct > 0 && todayPct < 100 ? '2px solid #0a0a0a' : undefined }} />
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button onClick={() => quickLog()} className="press min-h-12 border-2 border-ink bg-ink px-5 text-sm font-bold uppercase tracking-wide text-bg">
@@ -76,7 +76,7 @@ export default function Overview() {
             </span>
           </div>
         </section>
-        <section className="hard flex flex-col justify-between border-2 border-ink bg-ink p-5 text-bg">
+        <section className="hard flex flex-col justify-between border-2 border-ink bg-[var(--p2)] p-5 text-[var(--on-color)]">
           <div className="text-xs font-bold uppercase tracking-widest">Days to the exam</div>
           <div className="tnum text-7xl font-bold leading-none sm:text-8xl">{Math.max(0, sum.daysLeft)}</div>
           <div className="text-sm font-medium">Target {fmtDate(data.settings.examDate)} · both groups</div>
@@ -84,7 +84,7 @@ export default function Overview() {
       </div>
 
       {alerts === 'off' && (
-        <div className="hard mt-4 flex flex-wrap items-center justify-between gap-3 border-2 border-ink bg-surface px-4 py-3">
+        <div className="hard mt-4 flex flex-wrap items-center justify-between gap-3 border-2 border-ink bg-[var(--p5)] px-4 py-3 text-[var(--on-color)]">
           <span className="text-sm font-medium">Reminders are off on this device.</span>
           <Link to="/settings" className="press border-2 border-ink bg-hi px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-hi-ink">
             Turn on alerts
