@@ -1,3 +1,4 @@
+import { uid } from '../lib/dates'
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '../components/Layout'
 import { Badge, Button, Card, Check, ConfirmButton, Field, num, PageHeader, Seg, useToast, cx } from '../components/ui'
@@ -139,7 +140,7 @@ export default function Settings() {
             ))}
             {s.reminders.length === 0 && <p className="text-sm text-ink-3">No reminders set.</p>}
           </div>
-          <Button size="sm" className="mt-3" onClick={() => setSettings({ reminders: [...s.reminders, { id: crypto.randomUUID(), time: '20:00', label: 'Log today’s study', enabled: true }] })}>
+          <Button size="sm" className="mt-3" onClick={() => setSettings({ reminders: [...s.reminders, { id: uid(), time: '20:00', label: 'Log today’s study', enabled: true }] })}>
             + Add reminder
           </Button>
           <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">

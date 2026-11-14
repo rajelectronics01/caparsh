@@ -1,3 +1,4 @@
+import { uid } from './dates'
 import type { Chapter, Rec, Settings, Subject } from './types'
 
 // Chapter titles follow ICAI's Board of Studies study material for the Intermediate course (New Scheme),
@@ -153,7 +154,7 @@ export function defaultSettings(): Settings {
 
 export function newChapter(subjectId: string, name: string, order: number, id?: string): Chapter {
   return {
-    id: id ?? crypto.randomUUID(),
+    id: id ?? uid(),
     subjectId,
     name,
     order,

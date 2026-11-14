@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { overlapping } from '../lib/analytics'
-import { durationBetween, fmtHM, minToTime, today } from '../lib/dates'
+import { durationBetween, fmtHM, minToTime, today, uid } from '../lib/dates'
 import { useStore } from '../lib/store'
 import type { Activity, Session } from '../lib/types'
 import { useSubjects } from './SessionForm'
@@ -88,7 +88,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
       }
     }
     return {
-      id: crypto.randomUUID(),
+      id: uid(),
       date,
       subjectId,
       chapterId: chapterId || undefined,

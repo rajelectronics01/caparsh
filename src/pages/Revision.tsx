@@ -3,7 +3,7 @@ import { useSubjects } from '../components/SessionForm'
 import { Badge, Button, Card, Check, Dot, Empty, Field, Modal, num, PageHeader, Seg, Stat, useToast } from '../components/ui'
 import { setRevision } from '../lib/actions'
 import type { ChapterStats } from '../lib/analytics'
-import { fmtDate, fmtHM, today } from '../lib/dates'
+import { fmtDate, fmtHM, today, uid } from '../lib/dates'
 import { useStore } from '../lib/store'
 
 type Bucket = 'all' | 'never' | 'due' | '1' | '2' | '3'
@@ -30,7 +30,7 @@ function RevisionForm({ c, cycle, onClose }: { c: ChapterStats; cycle: number; o
     const ch = setRevision(c.chapter, cycle, { done: f.done, date: f.date, durationMin: Math.round(num(f.min)) || undefined, confidence: f.confidence, weakAreas: f.weak.trim() || undefined, topicsAgain: f.again.trim() || undefined })
     put('chapters', { ...ch, nextRevisionDate: f.next || undefined })
     if (f.log && f.done && num(f.min) > 0)
-      put('sessions', { id: crypto.randomUUID(), date: f.date, subjectId: c.chapter.subjectId, chapterId: c.chapter.id, activity: 'revision', durationMin: Math.round(num(f.min)), topic: `Revision ${cycle + 1}`, status: 'completed' })
+      put('sessions', { id: uid(), date: f.date, subjectId: c.chapter.subjectId, chapterId: c.chapter.id, activity: 'revision', durationMin: Math.round(num(f.min)), topic: `Revision ${cycle + 1}`, status: 'completed' })
     toast(`Revision ${cycle + 1} saved`)
     onClose()
   }

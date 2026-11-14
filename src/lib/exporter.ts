@@ -1,3 +1,4 @@
+import { uid } from './dates'
 import { chapterStats } from './analytics'
 import { defaultSettings, emptyRevisions } from './seed'
 import { ACTIVITIES, TEST_TYPES, type Data, type Session, type TestRecord } from './types'
@@ -152,7 +153,7 @@ export async function importSpreadsheet(file: File, data: Data) {
         }
         const timed = isTime(str(r.start)) && isTime(str(r.end))
         sessions.push({
-          id: str(r.id) || crypto.randomUUID(),
+          id: str(r.id) || uid(),
           date: str(r.date),
           subjectId: str(r.subjectId),
           chapterId: chapters.has(str(r.chapterId)) ? str(r.chapterId) : undefined,
@@ -176,7 +177,7 @@ export async function importSpreadsheet(file: File, data: Data) {
           skipped++
           continue
         }
-        tests.push({ id: str(r.id) || crypto.randomUUID(), date: str(r.date), subjectId: str(r.subjectId), chapterId: chapters.has(str(r.chapterId)) ? str(r.chapterId) : undefined, type: str(r.type) as TestRecord['type'], totalMarks: v.total, marks: v.marks, attempted: v.att, correct: v.cor, incorrect: v.inc, timeMin: v.time, remarks: str(r.remarks) || undefined })
+        tests.push({ id: str(r.id) || uid(), date: str(r.date), subjectId: str(r.subjectId), chapterId: chapters.has(str(r.chapterId)) ? str(r.chapterId) : undefined, type: str(r.type) as TestRecord['type'], totalMarks: v.total, marks: v.marks, attempted: v.att, correct: v.cor, incorrect: v.inc, timeMin: v.time, remarks: str(r.remarks) || undefined })
       }
     }
   }

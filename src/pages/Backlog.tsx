@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Badge, Button, Card, Check, Empty, Field, num, PageHeader, Seg, Stat, useToast } from '../components/ui'
 import { distribute, periodReview, type BacklogItem } from '../lib/analytics'
-import { addDays, diffDays, fmtDate, fmtDay, fmtHM, fmtShort, today, weekStart } from '../lib/dates'
+import { addDays, diffDays, fmtDate, fmtDay, fmtHM, fmtShort, today, uid, weekStart } from '../lib/dates'
 import { useStore } from '../lib/store'
 
 const TYPE_LABEL: Record<BacklogItem['type'], string> = { lecture: 'Lectures', practice: 'Practice', revision: 'Revision', plan: 'Missed plan' }
@@ -38,7 +38,7 @@ export default function Backlog() {
     if (!preview.plans.length) return
     putMany(
       preview.plans.map((p) => {
-        const id = crypto.randomUUID()
+        const id = uid()
         return { collection: 'plans' as const, id, data: { ...p, id } }
       }),
     )

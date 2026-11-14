@@ -11,6 +11,16 @@ npm test           # calculation tests
 npm run build      # production build in dist/
 ```
 
+### On your phone, from your computer
+
+Phone and computer on the same Wi-Fi:
+
+```bash
+npm run phone
+```
+
+It prints a `Network:` address such as `http://192.168.1.20:5173`. Open that in the phone's browser. Data is kept in that phone browser only. Over plain `http` the browser will not allow notifications or a proper Home Screen install; those need the deployed `https` site.
+
 With no configuration the app runs in **local mode**: data is saved in the browser on that device only (several local profiles can exist, which is enough to try the friend comparison). For phone access, sync and a real friend account, connect Supabase.
 
 ## Go live (about 15 minutes, free tiers)

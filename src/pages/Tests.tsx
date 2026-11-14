@@ -3,7 +3,7 @@ import { HBars, Lines } from '../components/charts'
 import { useSubjects } from '../components/SessionForm'
 import { Badge, Button, Card, ConfirmButton, Dot, Empty, Field, Modal, num, PageHeader, pct, Stat, useToast } from '../components/ui'
 import { accuracyBySubject, chapterStrength } from '../lib/analytics'
-import { fmtDate, fmtHM, fmtShort, today } from '../lib/dates'
+import { fmtDate, fmtHM, fmtShort, today, uid } from '../lib/dates'
 import { useStore } from '../lib/store'
 import { TEST_TYPES, type TestRecord, type TestType } from '../lib/types'
 
@@ -38,7 +38,7 @@ function TestForm({ initial, onClose }: { initial: Partial<TestRecord>; onClose:
     if (total <= 0 && att <= 0) return setErr('Enter total marks, or the number of questions attempted.')
     if (marks > total) return setErr('Marks obtained cannot exceed total marks.')
     if (cor + inc > att) return setErr('Correct plus incorrect cannot exceed questions attempted.')
-    put('tests', { id: initial.id ?? crypto.randomUUID(), date: f.date, subjectId: f.subjectId, chapterId: f.chapterId || undefined, type: f.type, totalMarks: total, marks, attempted: att, correct: cor, incorrect: inc, timeMin: Math.round(num(f.timeMin)), remarks: f.remarks.trim() || undefined })
+    put('tests', { id: initial.id ?? uid(), date: f.date, subjectId: f.subjectId, chapterId: f.chapterId || undefined, type: f.type, totalMarks: total, marks, attempted: att, correct: cor, incorrect: inc, timeMin: Math.round(num(f.timeMin)), remarks: f.remarks.trim() || undefined })
     toast(initial.id ? 'Test updated' : 'Test recorded')
     onClose()
   }

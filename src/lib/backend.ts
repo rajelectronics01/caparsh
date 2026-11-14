@@ -1,3 +1,4 @@
+import { uid } from './dates'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Collection, Profile, Rec, Reminder } from './types'
 
@@ -70,7 +71,7 @@ class LocalBackend implements Backend {
     this.emit()
   }
   async signUp(_e: string, _p: string, name: string) {
-    const p: Profile = { id: crypto.randomUUID(), name: name.trim() || 'Me', code: code() }
+    const p: Profile = { id: uid(), name: name.trim() || 'Me', code: code() }
     LS.set('pct.profiles', [...this.localProfiles(), p])
     LS.set('pct.current', p.id)
     this.emit()

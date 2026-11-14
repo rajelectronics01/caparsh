@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { SessionForm, useSubjects } from '../components/SessionForm'
 import { Badge, Button, Card, Check, ConfirmButton, Dot, Field, Modal, num, PageHeader, Progress, cx } from '../components/ui'
 import { isStudyPlan } from '../lib/analytics'
-import { addDays, dow, durationBetween, fmtDate, fmtDay, fmtHM, fmtShort, rangeDays, timeToMin, today, weekStart } from '../lib/dates'
+import { addDays, dow, durationBetween, fmtDate, fmtDay, fmtHM, fmtShort, rangeDays, timeToMin, today, uid, weekStart } from '../lib/dates'
 import { useStore } from '../lib/store'
 import { PLAN_KINDS, type Activity, type DayInfo, type PlanItem, type PlanKind, type Session } from '../lib/types'
 
@@ -35,7 +35,7 @@ function PlanForm({ initial, onClose }: { initial: Partial<PlanItem>; onClose: (
     if (!(minutes > 0)) return setErr('Enter start and end times, or the planned minutes.')
     const auto = study ? `${subject(f.subjectId)?.short ?? ''}: ${chapter(f.chapterId)?.name ?? kindLabel(f.kind)}` : kindLabel(f.kind)
     put('plans', {
-      id: initial.id ?? crypto.randomUUID(),
+      id: initial.id ?? uid(),
       date: f.date,
       kind: f.kind,
       subjectId: study ? f.subjectId : undefined,

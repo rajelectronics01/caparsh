@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { overlapping } from '../lib/analytics'
-import { durationBetween, fmtHM, today } from '../lib/dates'
+import { durationBetween, fmtHM, today, uid } from '../lib/dates'
 import { useStore } from '../lib/store'
 import { ACTIVITIES, type Activity, type Session } from '../lib/types'
 import { Button, Field, Modal, num, useToast } from './ui'
@@ -55,7 +55,7 @@ export function SessionForm({ initial, onClose, lockActivity }: { initial?: Part
     if (qa < 0 || (qc ?? 0) < 0) return setErr('Question counts cannot be negative.')
     if (qc != null && qc > qa) return setErr('Correct answers cannot exceed questions attempted.')
     const s: Session = {
-      id: initial?.id ?? crypto.randomUUID(),
+      id: initial?.id ?? uid(),
       date: f.date,
       subjectId: f.subjectId,
       chapterId: f.chapterId || undefined,
