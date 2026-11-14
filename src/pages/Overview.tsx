@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bars, CAT_SERIES, HBars, Heatmap } from '../components/charts'
-import { Badge, Card, Empty, PageHeader, pct, Progress, Ring, Seg, Stat } from '../components/ui'
-import { dailyMap, seriesDaily, seriesMonthly, seriesWeekly } from '../lib/analytics'
-import { addDays, fmtDate, fmtHM, fmtMonth, fmtShort, hrs, today } from '../lib/dates'
+import { Card, Empty, pct, Progress, Ring, Seg, Stat } from '../components/ui'
+import { useShell } from '../components/Layout'
+import { dailyMap, forecast, nextUp, seriesDaily, seriesMonthly, seriesWeekly } from '../lib/analytics'
+import { addDays, fmtDate, fmtDay, fmtHM, fmtMonth, fmtShort, hrs, today } from '../lib/dates'
 import { useStore } from '../lib/store'
 
 const toHours = (rows: object[]) =>
@@ -33,63 +34,130 @@ export default function Overview() {
   const todayMin = heat.get(t) ?? 0
   const dayInfo = data.days.find((d) => d.id === t)
   const target = data.settings.dailyTargetHours[dayInfo?.dayType ?? 'normal']
-  const plansToday = data.plans.filter((p) => p.date === t)
+  const { quickLog } = useShell()
+  const todayPct = target > 0 ? Math.min(100, (100 * todayMin) / (target * 60)) : 0
+  const next = useMemo(() => nextUp(data, sum, t), [data, sum, t])
+  const fc = useMemo(() => forecast(data, sum, t), [data, sum, t])
+  const alerts = 'Notification' in window && Notification.permission !== 'granted' && data.settings.reminders.some((r) => r.enabled) ? 'off' : 'ok'
   const revCounts = [0, 1, 2, 3].map((n) => sum.cs.filter((c) => c.revisionsDone === n).length)
   const behind = sum.ss.filter((s) => s.behind > 0)
   const started = t >= data.settings.startDate
 
   return (
     <>
-      <PageHeader title={`Overview`} sub={`${user?.name ? `${user.name} · ` : ''}${fmtDate(t)}${started ? '' : ` · preparation starts ${fmtDate(data.settings.startDate)}`}`} />
-
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <div className="flex flex-col items-center gap-6 sm:flex-row">
-            <Ring value={sum.comp.overall} sub="syllabus" />
-            <div className="w-full flex-1 space-y-4">
+        <section className="hard border-2 border-ink bg-hi p-5 text-hi-ink lg:col-span-2">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-widest">
+                {fmtDay(t)} · {fmtDate(t)}
+                {user?.name ? ` · ${user.name}` : ''}
+              </div>
+              <h1 className="mt-1 text-4xl font-bold leading-none sm:text-5xl">Today</h1>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="tnum border-2 border-ink bg-surface px-2 py-1 text-xs font-bold uppercase text-ink">{sum.streak.current}-day streak</span>
+              <span className="tnum border-2 border-ink bg-surface px-2 py-1 text-xs font-bold uppercase text-ink">Best {sum.streak.best}</span>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-wrap items-end gap-x-3 gap-y-1">
+            <span className="tnum text-6xl font-bold leading-none sm:text-7xl">{fmtHM(todayMin)}</span>
+            <span className="tnum pb-1 text-xl font-bold">/ {target}h target</span>
+          </div>
+          <div className="mt-3 h-5 border-2 border-ink bg-surface" role="progressbar" aria-label="Today against target" aria-valuenow={Math.round(todayPct)} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full bg-ink" style={{ width: `${todayPct}%` }} />
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button onClick={() => quickLog()} className="press min-h-12 border-2 border-ink bg-ink px-5 text-sm font-bold uppercase tracking-wide text-bg">
+              + Log study
+            </button>
+            <span className="text-sm font-medium">
+              {!started ? `Preparation starts ${fmtDate(data.settings.startDate)}.` : todayMin === 0 ? 'Nothing logged yet today.' : todayMin >= target * 60 ? 'Target hit. Anything more is a bonus.' : `${fmtHM(target * 60 - todayMin)} to go.`}
+            </span>
+          </div>
+        </section>
+        <section className="hard flex flex-col justify-between border-2 border-ink bg-ink p-5 text-bg">
+          <div className="text-xs font-bold uppercase tracking-widest">Days to the exam</div>
+          <div className="tnum text-7xl font-bold leading-none sm:text-8xl">{Math.max(0, sum.daysLeft)}</div>
+          <div className="text-sm font-medium">Target {fmtDate(data.settings.examDate)} · both groups</div>
+        </section>
+      </div>
+
+      {alerts === 'off' && (
+        <div className="hard mt-4 flex flex-wrap items-center justify-between gap-3 border-2 border-ink bg-surface px-4 py-3">
+          <span className="text-sm font-medium">Reminders are off on this device.</span>
+          <Link to="/settings" className="press border-2 border-ink bg-hi px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-hi-ink">
+            Turn on alerts
+          </Link>
+        </div>
+      )}
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Card title="Next up" sub="Tap one to log it">
+          <ul className="space-y-2">
+            {next.map((n) => (
+              <li key={n.key}>
+                <button onClick={() => quickLog({ subjectId: n.subjectId, chapterId: n.chapterId, activity: n.activity, durationMin: n.minutes })} className="press flex w-full items-center gap-3 border-2 border-ink bg-surface px-3 py-2.5 text-left hover:bg-surface-2">
+                  <span className="h-9 w-2 shrink-0" style={{ background: `var(--s${data.subjects.find((x) => x.id === n.subjectId)?.slot ?? 1})` }} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-bold">{n.title}</span>
+                    <span className="block truncate text-xs text-ink-3">{n.why}</span>
+                  </span>
+                  <span className="tnum shrink-0 text-xs font-bold">{fmtHM(n.minutes)}</span>
+                </button>
+              </li>
+            ))}
+            {next.length === 0 && <li className="text-sm text-ink-3">Everything is complete.</li>}
+          </ul>
+        </Card>
+        <Card title="Syllabus">
+          <div className="flex items-center gap-5">
+            <Ring value={sum.comp.overall} size={112} sub="done" />
+            <div className="w-full flex-1 space-y-3">
               {[
                 { label: 'Group 1', v: sum.comp.g1 },
                 { label: 'Group 2', v: sum.comp.g2 },
-                { label: 'Revision (3 cycles)', v: sum.comp.revision },
+                { label: 'Revision', v: sum.comp.revision },
               ].map((r) => (
                 <div key={r.label}>
-                  <div className="mb-1.5 flex justify-between text-sm">
-                    <span className="text-ink-2">{r.label}</span>
-                    <span className="tnum font-medium">{r.v.toFixed(1)}%</span>
+                  <div className="mb-1 flex justify-between text-[13px]">
+                    <span className="font-bold uppercase tracking-wide">{r.label}</span>
+                    <span className="tnum font-bold">{r.v.toFixed(1)}%</span>
                   </div>
                   <Progress value={r.v} />
                 </div>
               ))}
-              <p className="text-xs text-ink-3">A chapter counts 50% lectures, 25% practice, 25% revision. Finishing lectures alone never completes it.</p>
             </div>
           </div>
+          <p className="mt-3 text-xs text-ink-3">Lectures 50%, practice 25%, revision 25%. Lectures alone never finish a chapter.</p>
         </Card>
-        <Card>
-          <div className="flex h-full flex-col justify-between gap-4">
-            <div>
-              <div className="text-[12.5px] text-ink-3">Days to the exam</div>
-              <div className="tnum text-4xl font-semibold tracking-tight">{Math.max(0, sum.daysLeft)}</div>
-              <div className="text-[13px] text-ink-3">Target {fmtDate(data.settings.examDate)}</div>
-            </div>
-            <div>
-              <div className="mb-1.5 flex justify-between text-sm">
-                <span className="text-ink-2">Today</span>
-                <span className="tnum font-medium">
-                  {fmtHM(todayMin)} / {target}h
-                </span>
+        <Card title="Forecast" sub="Where your last 14 days lead">
+          {!fc.hasCounts ? (
+            <p className="text-sm text-ink-3">
+              Enter lecture counts in the <Link className="font-bold text-accent underline" to="/lectures">Lecture Tracker</Link> and this will tell you when you finish at your current pace.
+            </p>
+          ) : fc.lecturesLeft === 0 ? (
+            <p className="text-sm font-bold">All entered lectures are done.</p>
+          ) : (
+            <>
+              <div className="text-xs font-bold uppercase tracking-wide text-ink-3">Lectures finish on</div>
+              <div className={`tnum text-3xl font-bold ${fc.onTime === false ? 'text-bad' : ''}`}>{fc.finish ? fmtDate(fc.finish) : 'No pace yet'}</div>
+              <p className="mt-1 text-[13px] text-ink-2">
+                {fc.finish ? `At ${fc.lecturesPerDay.toFixed(1)} lectures a day.` : 'No lectures completed in the last 14 days.'} {fc.onTime === false ? 'That is after the exam.' : ''}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2 border-t-2 border-ink pt-3 text-[13px]">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-ink-3">Needed</div>
+                  <div className="tnum font-bold">{fmtHM(fc.neededMinPerDay)}/day</div>
+                </div>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wide text-ink-3">You average</div>
+                  <div className="tnum font-bold">{fmtHM(fc.avgMinPerDay)}/day</div>
+                </div>
               </div>
-              <Progress value={target > 0 ? (100 * todayMin) / (target * 60) : 0} color="var(--s3)" />
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Badge tone={sum.streak.current > 0 ? 'good' : 'neutral'}>{sum.streak.current}-day streak</Badge>
-                <Badge>Best {sum.streak.best}</Badge>
-                {plansToday.length > 0 && (
-                  <Badge tone="accent">
-                    {plansToday.filter((p) => p.done).length}/{plansToday.length} planned done
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </div>
+              <p className="mt-2 text-xs text-ink-3">“Needed” is lecture time only, to finish {fc.lecturesLeft} lectures by the exam. It leaves no room for revision, so aim higher.</p>
+            </>
+          )}
         </Card>
       </div>
 
@@ -109,7 +177,7 @@ export default function Overview() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <Card title="What needs attention" className="lg:col-span-1" action={<Link to="/backlog" className="text-sm text-accent">Backlog →</Link>}>
+        <Card title="What needs attention" className="lg:col-span-1" action={<Link to="/backlog" className="text-sm font-bold text-accent underline">Backlog →</Link>}>
           {sum.backlog.length === 0 && behind.length === 0 ? (
             <p className="text-sm text-ink-3">No backlog. {noSessions ? 'Set lecture counts in the Syllabus Tracker and target dates in Subjects so the tracker can tell you when you slip.' : 'Keep going.'}</p>
           ) : (

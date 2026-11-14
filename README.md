@@ -32,6 +32,10 @@ Without this step, reminders fire only while the app is open. To be alerted when
 3. In Supabase SQL Editor run the commented block at the bottom of `supabase/schema.sql`, with your Vercel URL and `CRON_SECRET` filled in. It calls `/api/remind` every 5 minutes.
 4. On each device: *Settings → Daily alerts → Enable alerts on this device*. On iPhone, first *Share → Add to Home Screen* and enable alerts from the installed app.
 
+## Syllabus source
+
+Chapter titles follow ICAI's Board of Studies study material pages for the Intermediate course (New Scheme), as listed on icai.org in November 2026. Income-tax uses the edition marked applicable for May 2027, September 2027 and January 2028; its Chapter 3 (Heads of Income) is tracked as five rows, one per head. Not confirmed from ICAI's pages: Advanced Accounting chapters 13 to 15, the units inside Financial Management chapter 9, and whether GST still has a separate "Returns" chapter (the newest listing seen showed 14 chapters). Check those three against the study material and edit them in the Syllabus Tracker.
+
 ## How the numbers are calculated
 
 - **Chapter progress** = 50% lectures + 25% practice + 25% revision. Practice is half question target, half RTP/MTP/PYQ. A chapter is **Completed** only when all lectures are done, practice is done, and the required number of revisions (Settings, default 1) is done. Lectures alone never complete a chapter.

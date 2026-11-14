@@ -109,7 +109,7 @@ export default function Subjects() {
                   </dl>
                   <div className="mt-4 flex items-center justify-between">
                     {s.behind > 0 ? <Badge tone="warn">{s.behind} lectures behind pace</Badge> : <span />}
-                    <Link to={`/syllabus?s=${s.subject.id}`} className="text-sm text-accent">
+                    <Link to={`/syllabus?s=${s.subject.id}`} className="text-sm font-bold text-accent underline">
                       Chapters →
                     </Link>
                   </div>

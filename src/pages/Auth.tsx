@@ -51,7 +51,7 @@ export default function Auth() {
             <p className="text-sm text-ink-3">CA Intermediate · September 2027</p>
           </div>
         </div>
-        <div className="rounded-2xl border border-line bg-surface p-6">
+        <div className="hard border-2 border-ink bg-surface p-6">
           {local && profiles.length > 0 && (
             <div className="mb-5">
               <p className="mb-2 text-[13px] font-medium text-ink-2">Profiles on this device</p>

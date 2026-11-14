@@ -19,6 +19,7 @@ export default function Settings() {
   const [name, setName] = useState(user?.name ?? '')
   const [perm, setPerm] = useState(notifySupported() ? Notification.permission : 'unsupported')
   const [busy, setBusy] = useState('')
+  const installed = matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
   const backupRef = useRef<HTMLInputElement>(null)
   const sheetRef = useRef<HTMLInputElement>(null)
 
@@ -99,7 +100,7 @@ export default function Settings() {
             {DAYS.map((d, i) => {
               const on = s.collegeDays.includes(i)
               return (
-                <button key={d} aria-pressed={on} onClick={() => setSettings({ collegeDays: on ? s.collegeDays.filter((x) => x !== i) : [...s.collegeDays, i].sort() })} className={cx('min-h-9 rounded-lg border px-3 text-sm', on ? 'border-accent bg-accent-soft font-medium text-accent' : 'border-line text-ink-2')}>
+                <button key={d} aria-pressed={on} onClick={() => setSettings({ collegeDays: on ? s.collegeDays.filter((x) => x !== i) : [...s.collegeDays, i].sort() })} className={cx('press min-h-9 border-2 px-3 text-sm font-bold uppercase', on ? 'border-ink bg-hi font-bold text-hi-ink' : 'border-ink bg-surface text-ink')}>
                   {d}
                 </button>
               )
@@ -170,6 +171,21 @@ export default function Settings() {
               </>
             )}
           </div>
+          <ol className="mt-4 space-y-1.5 text-sm">
+            {[
+              { ok: installed, label: 'App added to the Home Screen', help: 'iPhone: open in Safari → Share → Add to Home Screen. Android: Chrome menu → Install app.' },
+              { ok: perm === 'granted', label: 'Notifications allowed on this device', help: 'Open the installed app and press “Enable alerts on this device”.' },
+              { ok: pushConfigured(), label: 'Push server connected', help: 'One-time setup on the deployed site (README, “Closed-app alerts”). Until then alerts fire only while the app is open.' },
+            ].map((x, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <span className={cx('tnum mt-0.5 grid size-5 shrink-0 place-items-center border-2 border-ink text-xs font-bold', x.ok ? 'bg-good-soft' : 'bg-surface')}>{x.ok ? '✓' : i + 1}</span>
+                <span>
+                  <span className="font-bold">{x.label}</span>
+                  {!x.ok && <span className="block text-[13px] text-ink-3">{x.help}</span>}
+                </span>
+              </li>
+            ))}
+          </ol>
           <p className="mt-3 text-[13px] text-ink-3">
             {pushConfigured()
               ? 'Push is configured: alerts arrive even when the app is closed. On iPhone, first add the app to your Home Screen (Share → Add to Home Screen), then enable alerts from inside it.'

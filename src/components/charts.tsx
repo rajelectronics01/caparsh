@@ -35,7 +35,7 @@ const axis = { tickLine: false, axisLine: false, tick: { fontSize: 12, fill: 'va
 function Tip({ active, payload, label, series, fmtLabel, fmtValue }: { active?: boolean; payload?: { dataKey: string; value: number }[]; label?: string; series: Series[]; fmtLabel?: (l: string) => string; fmtValue: (v: number) => string }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-line bg-surface px-3 py-2 text-[13px] shadow-lg">
+    <div className="hard border-2 border-ink bg-surface px-3 py-2 text-[13px]">
       <div className="mb-1 font-medium">{fmtLabel ? fmtLabel(String(label)) : label}</div>
       {payload.map((p) => {
         const s = series.find((x) => x.key === p.dataKey)
@@ -76,13 +76,13 @@ export function Bars({ data, xKey, series, height = 240, fmtX, fmtLabel, fmtValu
       <Legend series={series} />
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barCategoryGap="22%">
-          <CartesianGrid vertical={false} stroke="var(--line)" />
+          <CartesianGrid vertical={false} stroke="var(--ink-3)" strokeDasharray="2 4" />
           <XAxis dataKey={xKey} tickFormatter={fmtX} {...axis} minTickGap={16} />
           <YAxis {...axis} domain={[0, yMax ?? 'auto']} allowDecimals={false} />
           <Tooltip cursor={{ fill: 'var(--surface-2)' }} content={<Tip series={series} fmtLabel={fmtLabel ?? fmtX} fmtValue={fmtValue} />} />
           {refY != null && <ReferenceLine y={refY} stroke="var(--ink-3)" strokeDasharray="4 4" label={{ value: refLabel, position: 'insideTopRight', fontSize: 11, fill: 'var(--ink-3)' }} />}
-          {series.map((s, i) => (
-            <Bar key={s.key} dataKey={s.key} stackId={stacked ? 'a' : undefined} fill={s.color} stroke="var(--surface)" strokeWidth={1} maxBarSize={28} radius={!stacked || i === series.length - 1 ? [4, 4, 0, 0] : 0} isAnimationActive={false} />
+          {series.map((s) => (
+            <Bar key={s.key} dataKey={s.key} stackId={stacked ? 'a' : undefined} fill={s.color} stroke="var(--ink)" strokeWidth={1.5} maxBarSize={30} isAnimationActive={false} />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -97,12 +97,12 @@ export function Lines({ data, xKey, series, height = 240, fmtX, fmtLabel, fmtVal
       <Legend series={series} />
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={data} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
-          <CartesianGrid vertical={false} stroke="var(--line)" />
+          <CartesianGrid vertical={false} stroke="var(--ink-3)" strokeDasharray="2 4" />
           <XAxis dataKey={xKey} tickFormatter={fmtX} {...axis} minTickGap={24} />
           <YAxis {...axis} domain={[0, yMax ?? 'auto']} />
           <Tooltip cursor={{ stroke: 'var(--ink-3)', strokeDasharray: '3 3' }} content={<Tip series={series} fmtLabel={fmtLabel ?? fmtX} fmtValue={fmtValue} />} />
           {series.map((s) => (
-            <Line key={s.key} type="monotone" dataKey={s.key} stroke={s.color} strokeWidth={2} dot={data.length <= 31 ? { r: 2.5, strokeWidth: 0, fill: s.color } : false} activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} connectNulls isAnimationActive={false} />
+            <Line key={s.key} type="linear" dataKey={s.key} stroke={s.color} strokeWidth={3} dot={data.length <= 31 ? { r: 2.5, strokeWidth: 0, fill: s.color } : false} activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} connectNulls isAnimationActive={false} />
           ))}
         </LineChart>
       </ResponsiveContainer>
@@ -120,12 +120,12 @@ export function HBars({ rows, max, fmt, empty }: { rows: { key: string; label: s
         <div key={r.key} className="grid grid-cols-[84px_1fr_auto] items-center gap-3 text-[13px] sm:grid-cols-[110px_1fr_auto]" title={`${r.label}: ${fmt(r.value)}${r.note ? ` · ${r.note}` : ''}`}>
           <span className="truncate text-ink-2">{r.label}</span>
           <div className="space-y-0.5">
-            <div className="h-2.5 rounded-full bg-surface-2">
-              <div className="h-full rounded-full" style={{ width: `${(100 * r.value) / top}%`, minWidth: r.value > 0 ? 4 : 0, background: r.color ?? 'var(--accent)' }} />
+            <div className="h-3.5 border-2 border-ink bg-surface">
+              <div className="h-full" style={{ width: `${(100 * r.value) / top}%`, minWidth: r.value > 0 ? 4 : 0, background: r.color ?? 'var(--accent)' }} />
             </div>
             {r.value2 != null && (
-              <div className="h-2.5 rounded-full bg-surface-2">
-                <div className="h-full rounded-full" style={{ width: `${(100 * r.value2) / top}%`, minWidth: r.value2 > 0 ? 4 : 0, background: r.color2 }} />
+              <div className="h-3.5 border-2 border-ink bg-surface">
+                <div className="h-full" style={{ width: `${(100 * r.value2) / top}%`, minWidth: r.value2 > 0 ? 4 : 0, background: r.color2 }} />
               </div>
             )}
           </div>
@@ -166,7 +166,7 @@ export function Heatmap({ minutes, from, to }: { minutes: Map<string, number>; f
                 {w.map((d) => {
                   const out = d < from || d > to
                   const m = minutes.get(d) ?? 0
-                  return <span key={d} title={out ? '' : `${fmtDate(d)}: ${m > 0 ? fmtHM(m) : 'no study logged'}`} className="size-[13px] rounded-[3px]" style={{ background: out ? 'transparent' : `var(--h${level(m)})` }} data-dow={dow(d)} />
+                  return <span key={d} title={out ? '' : `${fmtDate(d)}: ${m > 0 ? fmtHM(m) : 'no study logged'}`} className="size-[13px]" style={{ background: out ? 'transparent' : `var(--h${level(m)})`, outline: out ? undefined : '1px solid var(--ink)' }} data-dow={dow(d)} />
                 })}
               </div>
             )

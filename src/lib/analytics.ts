@@ -552,3 +552,69 @@ export function overlapping(sessions: Session[], cand: Pick<Session, 'id' | 'dat
     return a < d && c < b
   })
 }
+
+// ---------- Guidance ----------
+export interface Suggestion {
+  key: string
+  title: string
+  why: string
+  subjectId?: string
+  chapterId?: string
+  activity: Activity
+  minutes: number
+  planId?: string
+}
+
+/** Up to `n` concrete things to do next: today's plan first, then backlog, then the next unfinished chapter of the most neglected subject. */
+export function nextUp(data: Data, s: Summary, todayISO: string, n = 3): Suggestion[] {
+  const out: Suggestion[] = []
+  const act = (k: string): Activity => (k === 'lecture' || k === 'practice' || k === 'revision' ? k : 'self')
+  for (const p of data.plans.filter((x) => x.date === todayISO && !x.done && isStudyPlan(x)).sort((a, b) => (a.start ?? '99').localeCompare(b.start ?? '99')))
+    out.push({ key: `plan-${p.id}`, title: p.title, why: p.start ? `Planned for ${p.start} today` : 'Planned for today', subjectId: p.subjectId, chapterId: p.chapterId, activity: act(p.kind), minutes: p.plannedMin, planId: p.id })
+  for (const b of s.backlog.filter((x) => x.type !== 'plan'))
+    out.push({ key: b.key, title: b.title, why: b.detail, subjectId: b.subjectId, chapterId: b.chapterId, activity: act(b.type), minutes: Math.min(b.minutes, b.chunkMin) })
+  if (out.length < n) {
+    const recent = (sid: string) => data.sessions.filter((x) => x.subjectId === sid && x.date > addDays(todayISO, -7)).reduce((a, x) => a + x.durationMin, 0)
+    const cands = s.ss
+      .map((x) => ({ x, next: x.chapters.find((c) => c.status !== 'Completed') }))
+      .filter((c) => c.next)
+      .sort((a, b) => recent(a.x.subject.id) - recent(b.x.subject.id) || a.x.subject.order - b.x.subject.order)
+    for (const { x, next } of cands) {
+      if (out.length >= n) break
+      const c = next!
+      const activity: Activity = !c.lecDone ? 'lecture' : !c.practiceDone ? 'practice' : 'revision'
+      out.push({
+        key: `next-${c.chapter.id}`,
+        title: `${x.subject.short}: ${c.chapter.name}`,
+        why: recent(x.subject.id) === 0 ? 'Not touched in the last 7 days' : `${fmtMin(recent(x.subject.id))} in the last 7 days`,
+        subjectId: x.subject.id,
+        chapterId: c.chapter.id,
+        activity,
+        minutes: activity === 'lecture' ? Math.round(x.avgLectureMin) : 60,
+      })
+    }
+  }
+  return out.slice(0, n)
+}
+const fmtMin = (m: number) => (m >= 60 ? `${Math.round((m / 60) * 10) / 10}h` : `${m}m`)
+
+/** Where the current pace leads: lecture finish date at the 14-day rate, and the daily hours needed to finish lectures before the exam. */
+export function forecast(data: Data, s: Summary, todayISO: string) {
+  const window = 14
+  const done14 = lecturesInRange(data, addDays(todayISO, -(window - 1)), todayISO)
+  const perDay = done14 / window
+  const left = s.lecturesLeft
+  const finish = perDay > 0 && left > 0 ? addDays(todayISO, Math.ceil(left / perDay)) : null
+  const daysLeft = Math.max(1, s.daysLeft)
+  const hours14 = s.totals.total === 0 ? 0 : data.sessions.filter((x) => x.date > addDays(todayISO, -window) && x.date <= todayISO).reduce((a, x) => a + x.durationMin, 0) / window
+  return {
+    lecturesPerDay: perDay,
+    lecturesLeft: left,
+    finish,
+    onTime: finish ? finish <= data.settings.examDate : null,
+    neededLecturesPerDay: left / daysLeft,
+    neededMinPerDay: s.lecturesRemainingMin / daysLeft,
+    avgMinPerDay: hours14,
+    hasCounts: s.ss.some((x) => x.totalLectures > 0),
+  }
+}

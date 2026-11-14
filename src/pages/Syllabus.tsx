@@ -85,7 +85,7 @@ export default function Syllabus() {
 
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
         {sum.ss.map((s) => (
-          <button key={s.subject.id} onClick={() => setParams({ s: s.subject.id })} className={cx('inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm', s.subject.id === sid ? 'border-accent bg-accent-soft font-medium text-accent' : 'border-line bg-surface text-ink-2')}>
+          <button key={s.subject.id} onClick={() => setParams({ s: s.subject.id })} className={cx('press inline-flex min-h-10 shrink-0 items-center gap-2 border-2 px-3 text-sm font-bold uppercase', s.subject.id === sid ? 'border-ink bg-hi font-bold text-hi-ink' : 'border-ink bg-surface text-ink')}>
             <Dot slot={s.subject.slot} />
             {s.subject.short}
             <span className="tnum text-xs opacity-70">{Math.round(s.completion)}%</span>

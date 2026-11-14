@@ -196,7 +196,7 @@ export default function Planner() {
           const min = st.reduce((a, p) => a + p.plannedMin, 0)
           const target = data.settings.dailyTargetHours[i.dayType] * 60
           return (
-            <section key={d} className={cx('flex flex-col rounded-xl border bg-surface', d === t ? 'border-accent' : 'border-line')}>
+            <section key={d} className={cx('flex flex-col border-2 border-ink bg-surface', d === t ? 'shadow-[6px_6px_0_var(--hi)]' : 'hard')}>
               <header className="border-b border-line px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div>

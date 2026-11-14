@@ -9,11 +9,11 @@ export const num = (v: string | number | undefined, d = 0) => {
 
 export function Card({ title, sub, action, children, className, pad = true }: { title?: ReactNode; sub?: ReactNode; action?: ReactNode; children: ReactNode; className?: string; pad?: boolean }) {
   return (
-    <section className={cx('rounded-xl border border-line bg-surface shadow-(--shadow)', className)}>
+    <section className={cx('hard min-w-0 border-2 border-ink bg-surface', className)}>
       {(title || action) && (
         <header className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4">
           <div className="min-w-0">
-            <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
+            <h2 className="text-[15px] font-bold text-ink">{title}</h2>
             {sub && <p className="mt-0.5 text-[13px] text-ink-3">{sub}</p>}
           </div>
           {action}
@@ -26,9 +26,9 @@ export function Card({ title, sub, action, children, className, pad = true }: { 
 
 export function Stat({ label, value, hint, tone }: { label: string; value: ReactNode; hint?: ReactNode; tone?: 'good' | 'warn' | 'bad' }) {
   return (
-    <div className="rounded-xl border border-line bg-surface px-4 py-3.5 shadow-(--shadow)">
-      <div className="text-[12.5px] text-ink-3">{label}</div>
-      <div className={cx('tnum mt-1 text-2xl font-semibold tracking-tight', tone === 'good' && 'text-good', tone === 'warn' && 'text-warn', tone === 'bad' && 'text-bad')}>{value}</div>
+    <div className="hard min-w-0 border-2 border-ink bg-surface px-4 py-3.5">
+      <div className="text-[11.5px] font-bold uppercase tracking-wide text-ink-3">{label}</div>
+      <div className={cx('tnum mt-1 text-[22px] font-bold leading-tight break-words', tone === 'good' && 'text-good', tone === 'warn' && 'text-warn', tone === 'bad' && 'text-bad')}>{value}</div>
       {hint && <div className="mt-0.5 text-[12.5px] text-ink-3">{hint}</div>}
     </div>
   )
@@ -41,12 +41,12 @@ export function Button({ variant = 'soft', size = 'md', className, ...p }: BtnPr
       type="button"
       {...p}
       className={cx(
-        'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg font-medium transition-colors disabled:opacity-50',
-        size === 'sm' ? 'min-h-8 px-2.5 text-[13px]' : 'min-h-10 px-3.5 text-sm',
-        variant === 'primary' && 'bg-accent text-accent-ink hover:opacity-90',
-        variant === 'soft' && 'border border-line bg-surface text-ink hover:bg-surface-2',
-        variant === 'ghost' && 'text-ink-2 hover:bg-surface-2',
-        variant === 'danger' && 'border border-line bg-surface text-bad hover:bg-bad-soft',
+        'press inline-flex shrink-0 items-center justify-center gap-1.5 border-2 border-ink font-bold uppercase tracking-wide disabled:opacity-40',
+        size === 'sm' ? 'min-h-8 px-2.5 text-[12px]' : 'min-h-10 px-3.5 text-[13px]',
+        variant === 'primary' && 'bg-hi text-hi-ink',
+        variant === 'soft' && 'bg-surface text-ink hover:bg-surface-2',
+        variant === 'ghost' && 'border-transparent! text-ink-2 shadow-none! hover:bg-surface-2',
+        variant === 'danger' && 'bg-bad-soft text-bad',
         className,
       )}
     />
@@ -56,7 +56,7 @@ export function Button({ variant = 'soft', size = 'md', className, ...p }: BtnPr
 export function Field({ label, children, hint, className }: { label: string; children: ReactNode; hint?: string; className?: string }) {
   return (
     <label className={cx('block', className)}>
-      <span className="mb-1 block text-[13px] font-medium text-ink-2">{label}</span>
+      <span className="mb-1 block text-[11.5px] font-bold uppercase tracking-wide text-ink-2">{label}</span>
       {children}
       {hint && <span className="mt-1 block text-xs text-ink-3">{hint}</span>}
     </label>
@@ -75,8 +75,8 @@ export function Check({ label, checked, onChange }: { label: string; checked: bo
 export function Progress({ value, color, className }: { value: number; color?: string; className?: string }) {
   const v = Math.max(0, Math.min(100, value))
   return (
-    <div className={cx('h-2 w-full overflow-hidden rounded-full bg-surface-2', className)} role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100}>
-      <div className="h-full rounded-full" style={{ width: `${v}%`, background: color ?? 'var(--accent)' }} />
+    <div className={cx('h-3 w-full overflow-hidden border-2 border-ink bg-surface', className)} role="progressbar" aria-valuenow={Math.round(v)} aria-valuemin={0} aria-valuemax={100}>
+      <div className="h-full" style={{ width: `${v}%`, background: color ?? 'var(--hi)' }} />
     </div>
   )
 }
@@ -89,10 +89,10 @@ export function Ring({ value, size = 132, label, sub }: { value: number; size?: 
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-2)" strokeWidth="10" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--accent)" strokeWidth="10" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--ink)" strokeWidth="10" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="tnum text-[26px] font-semibold tracking-tight">{label ?? `${v.toFixed(v > 0 && v < 10 ? 1 : 0)}%`}</span>
+        <span className="tnum text-[26px] font-bold">{label ?? `${v.toFixed(v > 0 && v < 10 ? 1 : 0)}%`}</span>
         {sub && <span className="text-xs text-ink-3">{sub}</span>}
       </div>
     </div>
@@ -100,14 +100,14 @@ export function Ring({ value, size = 132, label, sub }: { value: number; size?: 
 }
 
 const TONES = {
-  neutral: 'bg-surface-2 text-ink-2',
+  neutral: 'bg-surface-2 text-ink',
   good: 'bg-good-soft text-good',
   warn: 'bg-warn-soft text-warn',
   bad: 'bg-bad-soft text-bad',
-  accent: 'bg-accent-soft text-accent',
+  accent: 'bg-hi text-hi-ink',
 }
 export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: keyof typeof TONES }) {
-  return <span className={cx('inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium', TONES[tone])}>{children}</span>
+  return <span className={cx('inline-flex items-center whitespace-nowrap border-2 border-ink px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide', TONES[tone])}>{children}</span>
 }
 export const statusTone = (s: string): keyof typeof TONES =>
   s === 'Completed' ? 'good' : s === 'Not Started' ? 'neutral' : s === 'In Progress' ? 'accent' : 'warn'
@@ -118,7 +118,7 @@ export function Dot({ slot }: { slot: number }) {
 
 export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-line px-6 py-10 text-center">
+    <div className="flex flex-col items-center justify-center border-2 border-dashed border-ink px-6 py-10 text-center">
       <p className="font-medium text-ink">{title}</p>
       {children && <p className="mt-1 max-w-md text-sm text-ink-3">{children}</p>}
       {action && <div className="mt-4">{action}</div>}
@@ -130,7 +130,7 @@ export function PageHeader({ title, sub, children }: { title: string; sub?: stri
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-[22px] font-semibold tracking-tight">{title}</h1>
+        <h1 className="text-[28px] font-bold leading-none tracking-tight">{title}</h1>
         {sub && <p className="mt-0.5 text-sm text-ink-3">{sub}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
@@ -146,10 +146,10 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
   }, [onClose])
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label={title} className={cx('flex max-h-[92dvh] w-full flex-col rounded-t-2xl border border-line bg-surface sm:rounded-2xl', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg')}>
-        <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+      <div role="dialog" aria-modal="true" aria-label={title} className={cx('flex max-h-[92dvh] w-full flex-col border-2 border-ink bg-surface sm:shadow-[8px_8px_0_var(--ink)]', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg')}>
+        <div className="flex items-center justify-between border-b-2 border-ink bg-hi px-5 py-3 text-hi-ink">
           <h2 className="text-base font-semibold">{title}</h2>
-          <button aria-label="Close" onClick={onClose} className="grid size-9 place-items-center rounded-lg text-ink-3 hover:bg-surface-2">
+          <button aria-label="Close" onClick={onClose} className="grid size-9 place-items-center border-2 border-ink bg-surface font-bold text-ink">
             ✕
           </button>
         </div>
@@ -161,9 +161,9 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
 
 export function Seg<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { id: T; label: string }[] }) {
   return (
-    <div className="inline-flex rounded-lg border border-line bg-surface-2 p-0.5">
+    <div className="inline-flex max-w-full overflow-x-auto border-2 border-ink bg-surface">
       {options.map((o) => (
-        <button key={o.id} onClick={() => onChange(o.id)} className={cx('min-h-8 rounded-md px-3 text-[13px] font-medium', value === o.id ? 'bg-surface text-ink shadow-(--shadow)' : 'text-ink-3')}>
+        <button key={o.id} onClick={() => onChange(o.id)} className={cx('min-h-8 whitespace-nowrap px-3 text-[12px] font-bold uppercase tracking-wide', value === o.id ? 'bg-ink text-bg' : 'text-ink-2')}>
           {o.label}
         </button>
       ))}
@@ -200,7 +200,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4" aria-live="polite">
         {items.map((i) => (
-          <div key={i.id} className={cx('rounded-lg border border-line bg-surface px-4 py-2.5 text-sm shadow-lg', i.tone === 'bad' ? 'text-bad' : 'text-ink')}>
+          <div key={i.id} className={cx('hard border-2 border-ink px-4 py-2.5 text-sm font-bold', i.tone === 'bad' ? 'bg-bad-soft text-bad' : 'bg-hi text-hi-ink')}>
             {i.msg}
           </div>
         ))}
