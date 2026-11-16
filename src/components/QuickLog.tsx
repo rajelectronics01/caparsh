@@ -60,10 +60,17 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
       return {}
     }
   }, [])
-  const timed = !!(initial?.start && initial?.end)
+  const fromTimer = !!(initial?.start && initial?.end)
+  const [date, setDate] = useState(initial?.date ?? today())
+  const [from, setFrom] = useState(initial?.start ?? '')
+  const [to, setTo] = useState(initial?.end ?? '')
+  const [note, setNote] = useState('')
+  // Typed clock times win over the tapped duration.
+  const timed = !!(from && to)
   const [subjectId, setSubject] = useState(initial?.subjectId ?? (subjects.some((s) => s.id === last.subjectId) ? last.subjectId! : (subjects[0]?.id ?? '')))
   const [activity, setActivity] = useState<Activity>(initial?.activity ?? last.activity ?? 'lecture')
-  const [min, setMin] = useState(timed ? durationBetween(initial!.start!, initial!.end!) : (initial?.durationMin ?? last.min ?? 60))
+  const [tapMin, setMin] = useState(initial?.durationMin ?? last.min ?? 60)
+  const min = timed ? durationBetween(from, to) : tapMin
   // Default to the chapter being worked on: the first one in this subject that is not finished.
   const auto = (sid: string) => sum.cs.filter((c) => c.chapter.subjectId === sid && c.status !== 'Completed').sort((a, b) => a.chapter.order - b.chapter.order)[0]?.chapter.id ?? ''
   const [chapterId, setChapter] = useState(initial?.chapterId ?? auto(subjectId))
@@ -74,9 +81,8 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
   const hasQ = activity === 'practice' || activity === 'rtp' || activity === 'mock'
 
   const build = (): Session => {
-    const date = initial?.date ?? today()
-    let start = initial?.start
-    let end = initial?.end
+    let start = timed ? from : undefined
+    let end = timed ? to : undefined
     if (!timed && date === today()) {
       // Assume the session just ended; fall back to an untimed entry if that would overlap another one.
       const now = new Date()
@@ -98,6 +104,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
       start,
       end,
       durationMin: min,
+      topic: note.trim() || undefined,
       lecturesCompleted: isLecture ? lec : undefined,
       qAttempted: hasQ && qa > 0 ? qa : undefined,
       qCorrect: hasQ && qa > 0 ? Math.min(qc, qa) : undefined,
@@ -105,11 +112,15 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
     }
   }
   const save = () => {
-    if (!subjectId || min <= 0) return
+    if (!subjectId) return
+    if (!date) return toast('Pick the date.', 'bad')
+    if (!!from !== !!to) return toast('Type both a start and an end time, or clear both.', 'bad')
+    if (!(min > 0) || min > 960) return toast('Duration must be between 1 minute and 16 hours.', 'bad')
     const s = build()
-    if (timed && overlapping(data.sessions, s).length) return toast('That time overlaps another session. Use “More details” to adjust it.', 'bad')
+    const clash = timed ? overlapping(data.sessions, s) : []
+    if (clash.length) return toast(`That overlaps a session already logged at ${clash[0].start}–${clash[0].end}.`, 'bad')
     put('sessions', s)
-    localStorage.setItem('pct.quick', JSON.stringify({ subjectId, activity, min }))
+    localStorage.setItem('pct.quick', JSON.stringify({ subjectId, activity, min: tapMin }))
     toast(`Logged ${fmtHM(min)} of ${subjects.find((x) => x.id === subjectId)?.short}`)
     onClose()
   }
@@ -152,7 +163,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
             ))}
           </div>
         </Step>
-        <Step n={3} title={timed ? `How long · ${initial!.start}–${initial!.end} from the timer` : 'How long'}>
+        <Step n={3} title={fromTimer ? 'How long · from the timer' : timed ? 'How long · from the times you typed' : 'How long'}>
           {!timed && (
             <div className="mb-2 flex flex-wrap gap-2">
               {DURS.map((d) => (
@@ -164,7 +175,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
           )}
           <div className="flex items-center justify-between gap-3 border-2 border-ink bg-hi px-3 py-2 text-hi-ink">
             {!timed && (
-              <button type="button" aria-label="15 minutes less" className="press grid size-11 place-items-center border-2 border-ink bg-surface text-xl font-bold text-ink" onClick={() => setMin(Math.max(5, min - 15))}>
+              <button type="button" aria-label="15 minutes less" className="press grid size-11 place-items-center border-2 border-ink bg-surface text-xl font-bold text-ink" onClick={() => setMin(Math.max(5, tapMin - 15))}>
                 −
               </button>
             )}
@@ -172,10 +183,28 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
               {fmtHM(min)}
             </span>
             {!timed && (
-              <button type="button" aria-label="15 minutes more" className="press grid size-11 place-items-center border-2 border-ink bg-surface text-xl font-bold text-ink" onClick={() => setMin(Math.min(960, min + 15))}>
+              <button type="button" aria-label="15 minutes more" className="press grid size-11 place-items-center border-2 border-ink bg-surface text-xl font-bold text-ink" onClick={() => setMin(Math.min(960, tapMin + 15))}>
                 +
               </button>
             )}
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-ink-2">Or type minutes</span>
+              <input type="number" min="1" max="960" inputMode="numeric" aria-label="Minutes studied" className="inp tnum" disabled={timed} value={timed ? min : tapMin || ''} onChange={(e) => setMin(Math.max(0, Math.min(960, Math.round(Number(e.target.value) || 0))))} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-ink-2">Date</span>
+              <input type="date" aria-label="Date" className="inp tnum" value={date} max={today()} onChange={(e) => setDate(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-ink-2">From (optional)</span>
+              <input type="time" aria-label="Start time" className="inp tnum" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-ink-2">To (optional)</span>
+              <input type="time" aria-label="End time" className="inp tnum" value={to} onChange={(e) => setTo(e.target.value)} />
+            </label>
           </div>
         </Step>
         {isLecture && <Stepper label="Lectures finished" value={lec} onChange={setLec} />}
@@ -185,6 +214,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
             <Stepper label="Got right" value={Math.min(qc, qa)} onChange={(v) => setQc(Math.min(v, qa))} step={1} />
           </div>
         )}
+        <input aria-label="Topic or note" className="inp" placeholder="Topic or note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         <div className="flex flex-col gap-2 sm:flex-row-reverse">
           <button type="button" onClick={save} className="press min-h-14 flex-1 border-2 border-ink bg-hi text-lg font-bold uppercase tracking-wide text-hi-ink">
             Log it

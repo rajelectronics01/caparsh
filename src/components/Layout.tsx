@@ -178,8 +178,8 @@ export function Layout() {
     <div className="flex items-center gap-2.5 px-5 py-4">
       <img src="/icon.svg" alt="" className="size-9 border-2 border-ink" />
       <div className="leading-tight">
-        <div className="text-[15px] font-bold uppercase">Parsh CA Tracker</div>
-        <div className="text-xs text-ink-3">CA Inter · Sep 2027</div>
+        <div className="max-w-40 truncate text-[15px] font-bold uppercase">{user?.name ?? 'CA Tracker'}</div>
+        <div className="text-xs text-ink-3">CA Inter tracker · Sep 2027</div>
       </div>
     </div>
   )
@@ -232,7 +232,7 @@ export function Layout() {
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b-2 border-ink bg-surface px-4 py-2 sm:px-6">
           <NavLink to="/" className="flex min-w-0 items-center gap-2 lg:hidden">
             <img src="/icon.svg" alt="" className="size-8 shrink-0 border-2 border-ink" />
-            <span className="truncate text-sm font-bold uppercase">Parsh CA</span>
+            <span className="truncate text-sm font-bold uppercase">{user?.name ?? 'CA Tracker'}</span>
           </NavLink>
           <div className="hidden lg:block">
             <SyncChip />

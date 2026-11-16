@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bars, CAT_SERIES, HBars, Heatmap } from '../components/charts'
 import { Card, Empty, pct, Progress, Ring, Seg, Stat } from '../components/ui'
 import { useShell } from '../components/Layout'
-import { dailyMap, forecast, nextUp, seriesDaily, seriesMonthly, seriesWeekly } from '../lib/analytics'
+import { dailyMap, forecast, nextUp, seriesDaily, seriesMonthly, seriesWeekly, summarize } from '../lib/analytics'
 import { addDays, fmtDate, fmtDay, fmtHM, fmtMonth, fmtShort, hrs, today } from '../lib/dates'
 import { useStore } from '../lib/store'
 
@@ -15,7 +15,7 @@ const toHours = (rows: object[]) =>
   })
 
 export default function Overview() {
-  const { data, sum, user } = useStore()
+  const { data, sum, user, friends, friendData, refreshFriends } = useStore()
   const t = today()
   const [range, setRange] = useState<'14' | '30' | '90'>('14')
   const noSessions = data.sessions.length === 0
@@ -42,6 +42,25 @@ export default function Overview() {
   const revCounts = [0, 1, 2, 3].map((n) => sum.cs.filter((c) => c.revisionsDone === n).length)
   const behind = sum.ss.filter((s) => s.behind > 0)
   const started = t >= data.settings.startDate
+  // Friends on the home screen: load once, then keep fresh while the page is visible.
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') void refreshFriends().catch(() => {})
+    }
+    tick()
+    const id = setInterval(tick, 30000)
+    return () => clearInterval(id)
+  }, [refreshFriends])
+  const board = useMemo(() => {
+    const row = (id: string, name: string, s: typeof sum, sessions: typeof data.sessions, me: boolean) => ({ id, name, me, today: sessions.filter((x) => x.date === t).reduce((a, x) => a + x.durationMin, 0), week: s.last7.total, syllabus: s.comp.overall, streak: s.streak.current })
+    const rows = [row('me', user?.name ?? 'You', sum, data.sessions, true)]
+    for (const f of friends) {
+      const fd = friendData[f.id]
+      if (fd) rows.push(row(f.id, f.name, summarize(fd, t), fd.sessions, false))
+    }
+    return rows.sort((a, b) => b.week - a.week || b.today - a.today || Number(b.me) - Number(a.me))
+  }, [sum, data.sessions, friends, friendData, user, t])
+  const boardMax = Math.max(...board.map((r) => r.week), 0)
 
   return (
     <>
@@ -50,10 +69,9 @@ export default function Overview() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-xs font-bold uppercase tracking-widest">
-                {fmtDay(t)} · {fmtDate(t)}
-                {user?.name ? ` · ${user.name}` : ''}
+                Today · {fmtDay(t)} {fmtDate(t)}
               </div>
-              <h1 className="mt-1 text-4xl font-bold leading-none sm:text-5xl">Today</h1>
+              <h1 className="mt-1 text-4xl font-bold leading-none sm:text-5xl">Hi, {(user?.name ?? 'there').split(' ')[0]}</h1>
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="tnum border-2 border-ink bg-[var(--p4)] px-2 py-1 text-xs font-bold uppercase text-[var(--on-color)]">{sum.streak.current}-day streak</span>
@@ -82,6 +100,46 @@ export default function Overview() {
           <div className="text-sm font-medium">Target {fmtDate(data.settings.examDate)} · both groups</div>
         </section>
       </div>
+
+      <Card className="mt-4" title={friends.length ? 'You vs friends' : 'Study with a friend'} sub={friends.length ? 'Ranked by hours in the last 7 days · refreshes every 30 seconds' : undefined} action={<Link to="/compare" className="text-sm font-bold underline">{friends.length ? 'Full comparison →' : 'Add a friend →'}</Link>} pad={false}>
+        {board.length < 2 ? (
+          <p className="p-5 text-sm text-ink-3">{friends.length ? 'Loading your friend\u2019s numbers…' : 'Link a friend with their code and both of your numbers appear here, side by side.'}</p>
+        ) : (
+          <ul className="divide-y-2 divide-ink">
+            {board.map((r, i) => (
+              <li key={r.id} className={`grid grid-cols-[2rem_1fr] items-center gap-x-3 gap-y-2 px-4 py-3 sm:grid-cols-[2rem_9rem_1fr_auto] ${r.me ? 'bg-[var(--p1)] text-[var(--on-color)]' : ''}`}>
+                <span className="tnum text-2xl font-bold">{i + 1}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold uppercase">
+                    {r.name}
+                    {r.me ? ' (you)' : ''}
+                  </span>
+                  <span className="tnum block text-xs">{r.streak}-day streak</span>
+                </span>
+                <div className="col-span-2 sm:col-span-1">
+                  <div className="h-4 border-2 border-ink bg-surface">
+                    <div className="fill h-full" style={{ width: `${boardMax ? (100 * r.week) / boardMax : 0}%`, background: r.me ? 'var(--pink)' : 'var(--p3)' }} />
+                  </div>
+                </div>
+                <dl className="tnum col-span-2 grid grid-cols-3 gap-x-4 text-right text-xs sm:col-span-1">
+                  <div>
+                    <dt className="font-sans text-[10px] font-bold uppercase tracking-wide opacity-70">Today</dt>
+                    <dd className="text-sm font-bold">{fmtHM(r.today)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-sans text-[10px] font-bold uppercase tracking-wide opacity-70">7 days</dt>
+                    <dd className="text-sm font-bold">{fmtHM(r.week)}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-sans text-[10px] font-bold uppercase tracking-wide opacity-70">Syllabus</dt>
+                    <dd className="text-sm font-bold">{r.syllabus.toFixed(1)}%</dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       {alerts === 'off' && (
         <div className="hard mt-4 flex flex-wrap items-center justify-between gap-3 border-2 border-ink bg-[var(--p5)] px-4 py-3 text-[var(--on-color)]">
