@@ -43,6 +43,10 @@ Reminders are sent by Supabase, not by the website host:
 
 On each phone: open the site, add it to the Home Screen, open it from the Home Screen icon, then *Menu → Settings → Daily alerts → Enable alerts on this device*. On iPhone this works only from the Home Screen icon (iOS 16.4 or later), not from a Safari tab.
 
+## Parked features
+
+Revision Manager, Question Practice and Tests & Performance are out of the app for now. The full version is saved on the branch `backup/full-features-2026-11-17`. See [docs/PARKED_FEATURES.md](docs/PARKED_FEATURES.md) for what was parked, how progress is counted meanwhile, and how to restore it.
+
 ## Syllabus source
 
 Chapter titles follow ICAI's Board of Studies study material pages for the Intermediate course (New Scheme), as listed on icai.org in November 2026. Income-tax uses the edition marked applicable for May 2027, September 2027 and January 2028; its Chapter 3 (Heads of Income) is tracked as five rows, one per head. Not confirmed from ICAI's pages: Advanced Accounting chapters 13 to 15, the units inside Financial Management chapter 9, and whether GST still has a separate "Returns" chapter (the newest listing seen showed 14 chapters). Check those three against the study material and edit them in the Syllabus Tracker.

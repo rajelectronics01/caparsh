@@ -237,7 +237,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const t = today()
     const recs: Rec[] = []
     for (const c of sum.cs) {
-      const done = c.status === 'Completed'
+      const done = c.done
       if (done && !c.chapter.completedAt) recs.push({ collection: 'chapters', id: c.chapter.id, data: { ...c.chapter, completedAt: t } })
       if (!done && c.chapter.completedAt) {
         const { completedAt: _drop, ...rest } = c.chapter

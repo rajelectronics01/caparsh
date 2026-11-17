@@ -7,6 +7,8 @@ export const ACTIVITIES: { id: Activity; label: string }[] = [
   { id: 'mock', label: 'Mock test' },
   { id: 'rtp', label: 'RTP/MTP/PYQ practice' },
 ]
+/** Activities offered when logging new study. The rest stay readable on old entries. */
+export const LOG_ACTIVITIES: { id: Activity; label: string }[] = ACTIVITIES.filter((a) => a.id === 'lecture' || a.id === 'self')
 export const activityLabel = (a: string) => ACTIVITIES.find((x) => x.id === a)?.label ?? a
 
 export interface Subject {
@@ -129,7 +131,9 @@ export interface Settings {
   startDate: string
   dailyTargetHours: Record<DayType, number>
   weeklyTargets: Record<string, number> // subjectId -> hours per week
-  requiredRevisions: number // revisions needed before a chapter counts as Completed (1..3)
+  requiredRevisions: number // revisions needed before a chapter counts as Completed (1..3), used in 'full' focus
+  /** 'lectures': only lecture progress counts (revision, practice and tests are parked). 'full': the complete rules. */
+  focus: 'lectures' | 'full'
   collegeDays: number[] // 0=Sun..6=Sat
   collegeStart: string
   collegeEnd: string

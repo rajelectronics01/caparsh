@@ -6,7 +6,13 @@ import { seedRecords } from './seed'
 import { assemble } from './store'
 import type { Chapter, Data, Session } from './types'
 
-const base = (): Data => assemble(seedRecords())
+const lectureMode = (): Data => assemble(seedRecords())
+/** The complete rules (lectures, practice and revision), which are parked in the app for now. */
+const base = (): Data => {
+  const d = assemble(seedRecords())
+  d.settings.focus = 'full'
+  return d
+}
 const sess = (p: Partial<Session>): Session => ({ id: Math.random().toString(36), date: '2026-11-16', subjectId: 'aa', activity: 'lecture', durationMin: 60, status: 'completed', ...p })
 const ch = (d: Data, id: string, patch: Partial<Chapter>) => {
   d.chapters = d.chapters.map((c) => (c.id === id ? { ...c, ...patch } : c))
@@ -36,6 +42,40 @@ describe('durations', () => {
   it('weeks start on Monday', () => {
     expect(weekStart('2026-11-15')).toBe('2026-11-09') // a Sunday
     expect(weekStart('2026-11-16')).toBe('2026-11-16')
+  })
+})
+
+describe('lectures-only focus (default)', () => {
+  it('is the default for a new account', () => {
+    expect(lectureMode().settings.focus).toBe('lectures')
+  })
+  it('counts a chapter as done once its lectures are watched, nothing else needed', () => {
+    const d = lectureMode()
+    ch(d, 'aa-01', { totalLectures: 4, lectureMarks: [{ date: '2026-11-16', n: 2 }] })
+    let c = stat(d, 'aa-01')
+    expect(c.status).toBe('In Progress')
+    expect(c.progress).toBe(50)
+    expect(c.done).toBe(false)
+    ch(d, 'aa-01', { lectureMarks: [{ date: '2026-11-16', n: 4 }] })
+    c = stat(d, 'aa-01')
+    expect(c.status).toBe('Lectures Completed')
+    expect(c.progress).toBe(100)
+    expect(c.done).toBe(true)
+    const s = summarize(d, '2026-11-20')
+    expect(s.completed).toBe(1)
+    expect(s.inProgress).toBe(0)
+    expect(s.comp.overall).toBeCloseTo(100 / 15 / 6, 5)
+  })
+  it('does not raise practice or revision backlog', () => {
+    const d = lectureMode()
+    ch(d, 'aa-01', { totalLectures: 1, lectureMarks: [{ date: '2026-11-16', n: 1 }], nextRevisionDate: '2026-11-01' })
+    expect(summarize(d, '2026-11-20').backlog).toHaveLength(0)
+  })
+  it('still reports lecture pace backlog', () => {
+    const d = lectureMode()
+    d.subjects = d.subjects.map((x) => (x.id === 'aa' ? { ...x, lectureTargetDate: '2026-11-25' } : x))
+    ch(d, 'aa-01', { totalLectures: 10 })
+    expect(summarize(d, '2026-11-20').lecturesBehind).toBe(5)
   })
 })
 

@@ -4,7 +4,7 @@ import { Badge, Button, Card, Check, ConfirmButton, Dot, Empty, Field, PageHeade
 import { totals } from '../lib/analytics'
 import { addDays, dow, fmtDate, fmtDay, fmtHM, today } from '../lib/dates'
 import { useStore } from '../lib/store'
-import { ACTIVITIES, activityLabel, type DayInfo, type DayType, type Session } from '../lib/types'
+import { LOG_ACTIVITIES, activityLabel, type DayInfo, type DayType, type Session } from '../lib/types'
 
 export function SessionTable({ rows, onEdit, showDate }: { rows: Session[]; onEdit: (s: Session) => void; showDate?: boolean }) {
   const { del } = useStore()
@@ -218,7 +218,7 @@ export default function DailyLog() {
             <Field label="Activity">
               <select className="inp" value={fa} onChange={(e) => setFa(e.target.value)}>
                 <option value="">All activities</option>
-                {ACTIVITIES.map((a) => (
+                {LOG_ACTIVITIES.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.label}
                   </option>

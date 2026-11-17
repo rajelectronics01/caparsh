@@ -24,9 +24,6 @@ const NAV: { group: string; items: { to: string; label: string }[] }[] = [
       { to: '/subjects', label: 'Subjects' },
       { to: '/syllabus', label: 'Syllabus Tracker' },
       { to: '/lectures', label: 'Lecture Tracker' },
-      { to: '/practice', label: 'Question Practice' },
-      { to: '/revision', label: 'Revision Manager' },
-      { to: '/tests', label: 'Tests & Performance' },
     ],
   },
   {

@@ -9,10 +9,6 @@ import { Modal, cx, useToast } from './ui'
 const ACTS: { id: Activity; label: string }[] = [
   { id: 'lecture', label: 'Lecture' },
   { id: 'self', label: 'Self-study' },
-  { id: 'practice', label: 'Practice' },
-  { id: 'revision', label: 'Revision' },
-  { id: 'rtp', label: 'RTP / PYQ' },
-  { id: 'mock', label: 'Mock test' },
 ]
 const DURS = [30, 45, 60, 90, 120, 150, 180]
 
@@ -68,17 +64,14 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
   // Typed clock times win over the tapped duration.
   const timed = !!(from && to)
   const [subjectId, setSubject] = useState(initial?.subjectId ?? (subjects.some((s) => s.id === last.subjectId) ? last.subjectId! : (subjects[0]?.id ?? '')))
-  const [activity, setActivity] = useState<Activity>(initial?.activity ?? last.activity ?? 'lecture')
+  const [activity, setActivity] = useState<Activity>(initial?.activity ?? (last.activity === 'self' ? 'self' : 'lecture'))
   const [tapMin, setMin] = useState(initial?.durationMin ?? last.min ?? 60)
   const min = timed ? durationBetween(from, to) : tapMin
   // Default to the chapter being worked on: the first one in this subject that is not finished.
-  const auto = (sid: string) => sum.cs.filter((c) => c.chapter.subjectId === sid && c.status !== 'Completed').sort((a, b) => a.chapter.order - b.chapter.order)[0]?.chapter.id ?? ''
+  const auto = (sid: string) => sum.cs.filter((c) => c.chapter.subjectId === sid && !c.done).sort((a, b) => a.chapter.order - b.chapter.order)[0]?.chapter.id ?? ''
   const [chapterId, setChapter] = useState(initial?.chapterId ?? auto(subjectId))
   const [lec, setLec] = useState(activity === 'lecture' ? 1 : 0)
-  const [qa, setQa] = useState(0)
-  const [qc, setQc] = useState(0)
   const isLecture = activity === 'lecture'
-  const hasQ = activity === 'practice' || activity === 'rtp' || activity === 'mock'
 
   const build = (): Session => {
     let start = timed ? from : undefined
@@ -106,8 +99,6 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
       durationMin: min,
       topic: note.trim() || undefined,
       lecturesCompleted: isLecture ? lec : undefined,
-      qAttempted: hasQ && qa > 0 ? qa : undefined,
-      qCorrect: hasQ && qa > 0 ? Math.min(qc, qa) : undefined,
       status: 'completed',
     }
   }
@@ -208,12 +199,6 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
           </div>
         </Step>
         {isLecture && <Stepper label="Lectures finished" value={lec} onChange={setLec} />}
-        {hasQ && (
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Stepper label="Questions tried" value={qa} onChange={setQa} step={5} />
-            <Stepper label="Got right" value={Math.min(qc, qa)} onChange={(v) => setQc(Math.min(v, qa))} step={1} />
-          </div>
-        )}
         <input aria-label="Topic or note" className="inp" placeholder="Topic or note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         <div className="flex flex-col gap-2 sm:flex-row-reverse">
           <button type="button" onClick={save} className="press min-h-14 flex-1 border-2 border-ink bg-hi text-lg font-bold uppercase tracking-wide text-hi-ink">

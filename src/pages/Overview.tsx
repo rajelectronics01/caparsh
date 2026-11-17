@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bars, CAT_SERIES, HBars, Heatmap } from '../components/charts'
+import { SessionLines } from '../components/SessionLines'
 import { Card, Empty, pct, Progress, Ring, Seg, Stat } from '../components/ui'
 import { useShell } from '../components/Layout'
-import { dailyMap, forecast, nextUp, seriesDaily, seriesMonthly, seriesWeekly, summarize } from '../lib/analytics'
-import { addDays, fmtDate, fmtDay, fmtHM, fmtMonth, fmtShort, hrs, today } from '../lib/dates'
+import { dailyMap, forecast, nextUp, seriesDaily, seriesMonthly, seriesWeekly, sessionsOn, summarize } from '../lib/analytics'
+import { addDays, fmtDate, fmtDay, fmtHM, fmtMonth, fmtShort, today } from '../lib/dates'
 import { useStore } from '../lib/store'
 
 const toHours = (rows: object[]) =>
@@ -39,7 +40,6 @@ export default function Overview() {
   const next = useMemo(() => nextUp(data, sum, t), [data, sum, t])
   const fc = useMemo(() => forecast(data, sum, t), [data, sum, t])
   const alerts = 'Notification' in window && Notification.permission !== 'granted' && data.settings.reminders.some((r) => r.enabled) ? 'off' : 'ok'
-  const revCounts = [0, 1, 2, 3].map((n) => sum.cs.filter((c) => c.revisionsDone === n).length)
   const behind = sum.ss.filter((s) => s.behind > 0)
   const started = t >= data.settings.startDate
   // Friends on the home screen: load once, then keep fresh while the page is visible.
@@ -52,14 +52,17 @@ export default function Overview() {
     return () => clearInterval(id)
   }, [refreshFriends])
   const board = useMemo(() => {
-    const row = (id: string, name: string, s: typeof sum, sessions: typeof data.sessions, me: boolean) => ({ id, name, me, today: sessions.filter((x) => x.date === t).reduce((a, x) => a + x.durationMin, 0), week: s.last7.total, syllabus: s.comp.overall, streak: s.streak.current })
-    const rows = [row('me', user?.name ?? 'You', sum, data.sessions, true)]
+    const row = (id: string, name: string, s: typeof sum, d: typeof data, me: boolean) => {
+      const log = sessionsOn(d, t)
+      return { id, name, me, log, subjects: d.subjects, chapters: d.chapters, today: log.reduce((a, x) => a + x.durationMin, 0), week: s.last7.total, syllabus: s.comp.overall, streak: s.streak.current }
+    }
+    const rows = [row('me', user?.name ?? 'You', sum, data, true)]
     for (const f of friends) {
       const fd = friendData[f.id]
-      if (fd) rows.push(row(f.id, f.name, summarize(fd, t), fd.sessions, false))
+      if (fd) rows.push(row(f.id, f.name, summarize(fd, t), fd, false))
     }
     return rows.sort((a, b) => b.week - a.week || b.today - a.today || Number(b.me) - Number(a.me))
-  }, [sum, data.sessions, friends, friendData, user, t])
+  }, [sum, data, friends, friendData, user, t])
   const boardMax = Math.max(...board.map((r) => r.week), 0)
 
   return (
@@ -101,7 +104,7 @@ export default function Overview() {
         </section>
       </div>
 
-      <Card className="mt-4" title={friends.length ? 'You vs friends' : 'Study with a friend'} sub={friends.length ? 'Ranked by hours in the last 7 days · refreshes every 30 seconds' : undefined} action={<Link to="/compare" className="text-sm font-bold underline">{friends.length ? 'Full comparison →' : 'Add a friend →'}</Link>} pad={false}>
+      <Card className="mt-4" title={friends.length ? 'You vs friends' : 'Study with a friend'} sub={friends.length ? 'Ranked by last 7 days · each row shows what was studied today · refreshes every 30 seconds' : undefined} action={<Link to="/compare" className="text-sm font-bold underline">{friends.length ? 'Full comparison →' : 'Add a friend →'}</Link>} pad={false}>
         {board.length < 2 ? (
           <p className="p-5 text-sm text-ink-3">{friends.length ? 'Loading your friend\u2019s numbers…' : 'Link a friend with their code and both of your numbers appear here, side by side.'}</p>
         ) : (
@@ -135,6 +138,9 @@ export default function Overview() {
                     <dd className="text-sm font-bold">{r.syllabus.toFixed(1)}%</dd>
                   </div>
                 </dl>
+                <div className="col-span-2 sm:col-span-4 sm:pl-11">
+                  <SessionLines compact sessions={r.log} subjects={r.subjects} chapters={r.chapters} empty="Nothing logged today yet" />
+                </div>
               </li>
             ))}
           </ul>
@@ -175,7 +181,6 @@ export default function Overview() {
               {[
                 { label: 'Group 1', v: sum.comp.g1 },
                 { label: 'Group 2', v: sum.comp.g2 },
-                { label: 'Revision', v: sum.comp.revision },
               ].map((r) => (
                 <div key={r.label}>
                   <div className="mb-1 flex justify-between text-[13px]">
@@ -187,7 +192,7 @@ export default function Overview() {
               ))}
             </div>
           </div>
-          <p className="mt-3 text-xs text-ink-3">Lectures 50%, practice 25%, revision 25%. Lectures alone never finish a chapter.</p>
+          <p className="mt-3 text-xs text-ink-3">Counted by lectures watched, chapter by chapter.</p>
         </Card>
         <Card title="Forecast" sub="Where your last 14 days lead">
           {!fc.hasCounts ? (
@@ -213,20 +218,18 @@ export default function Overview() {
                   <div className="tnum font-bold">{fmtHM(fc.avgMinPerDay)}/day</div>
                 </div>
               </div>
-              <p className="mt-2 text-xs text-ink-3">“Needed” is lecture time only, to finish {fc.lecturesLeft} lectures by the exam. It leaves no room for revision, so aim higher.</p>
+              <p className="mt-2 text-xs text-ink-3">“Needed” is lecture time only, to finish {fc.lecturesLeft} lectures by the exam. Plan for more than this.</p>
             </>
           )}
         </Card>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
         <Stat label="Total study" value={fmtHM(sum.totals.total)} />
         <Stat label="Lectures" value={fmtHM(sum.totals.lecture)} />
         <Stat label="Self-study" value={fmtHM(sum.totals.self)} />
-        <Stat label="Question practice" value={fmtHM(sum.totals.practice)} />
-        <Stat label="Revision" value={fmtHM(sum.totals.revision)} />
         <Stat label="Active study days" value={sum.active} hint={sum.active ? `${fmtHM(sum.avgPerActive)} avg per active day` : 'Days with zero hours do not count'} />
-        <Stat label="Chapters completed" value={sum.completed} hint={`of ${sum.cs.length}`} tone={sum.completed ? 'good' : undefined} />
+        <Stat label="Chapters done" value={sum.completed} hint={`of ${sum.cs.length}`} tone={sum.completed ? 'good' : undefined} />
         <Stat label="In progress" value={sum.inProgress} />
         <Stat label="Not started" value={sum.pending} />
         <Stat label="Lectures pending" value={sum.lecturesLeft} hint={sum.lecturesLeft ? `≈ ${fmtHM(sum.lecturesRemainingMin)} to watch` : 'Enter lecture counts to track'} />
@@ -235,7 +238,41 @@ export default function Overview() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <Card title="What needs attention" className="lg:col-span-1" action={<Link to="/backlog" className="text-sm font-bold text-accent underline">Backlog →</Link>}>
+        <Card title="Daily study hours" sub="Stacked by activity" className="lg:col-span-2" action={<Seg value={range} onChange={setRange} options={[{ id: '14', label: '14 days' }, { id: '30', label: '30 days' }, { id: '90', label: '90 days' }]} />}>
+          <Bars data={daily} xKey="date" series={CAT_SERIES} stacked fmtX={fmtShort} fmtLabel={fmtDate} refY={target} refLabel={`Target ${target}h`} empty={logFirst} />
+        </Card>
+        <Card title="Subject-wise study hours" sub="All time">
+          <HBars fmt={(v) => fmtHM(v)} rows={sum.ss.map((s) => ({ key: s.subject.id, label: s.subject.short, value: s.minutes, color: `var(--s${s.subject.slot})` }))} empty={logFirst} />
+        </Card>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card title="Weekly study hours" sub="Last 12 weeks, week starting Monday">
+          <Bars data={weekly} xKey="week" series={CAT_SERIES} stacked fmtX={fmtShort} fmtLabel={(w) => `Week of ${fmtDate(w)}`} empty={logFirst} />
+        </Card>
+        <Card title="Monthly trend" sub="Total hours per month">
+          <Bars data={monthly} xKey="month" series={[{ key: 'total', label: 'Total hours', color: 'var(--s1)' }]} fmtX={(m) => fmtMonth(m).slice(0, 3)} fmtLabel={fmtMonth} empty={logFirst} />
+        </Card>
+        <Card title="Subject-wise syllabus completion">
+          <HBars max={100} fmt={pct} rows={sum.ss.map((s) => ({ key: s.subject.id, label: s.subject.short, value: s.completion, color: `var(--s${s.subject.slot})`, note: `${s.completed}/${s.chapters.length} chapters done` }))} empty={<Empty title="No progress recorded yet">Mark lectures as you watch them in the Syllabus Tracker.</Empty>} />
+        </Card>
+        <Card title="Group 1 vs Group 2" sub="Average of each group's three papers">
+          <HBars
+            max={100}
+            fmt={pct}
+            rows={sum.comp.papers.map((p) => ({ key: String(p.paper), label: `G${p.group} · P${p.paper}`, value: p.completion, color: p.group === 1 ? 'var(--s1)' : 'var(--s2)', note: p.name }))}
+            empty={<Empty title="No progress recorded yet" />}
+          />
+          <div className="mt-4 grid grid-cols-2 gap-3 border-t-2 border-ink pt-4 text-sm">
+            <div>
+              <span className="text-ink-3">Group 1</span> <span className="tnum font-bold">{sum.comp.g1.toFixed(1)}%</span>
+            </div>
+            <div>
+              <span className="text-ink-3">Group 2</span> <span className="tnum font-bold">{sum.comp.g2.toFixed(1)}%</span>
+            </div>
+          </div>
+        </Card>
+        <Card title="What needs attention" action={<Link to="/backlog" className="text-sm font-bold underline">Backlog →</Link>}>
           {sum.backlog.length === 0 && behind.length === 0 ? (
             <p className="text-sm text-ink-3">No backlog. {noSessions ? 'Set lecture counts in the Syllabus Tracker and target dates in Subjects so the tracker can tell you when you slip.' : 'Keep going.'}</p>
           ) : (
@@ -252,55 +289,6 @@ export default function Overview() {
               {sum.backlog.length > 6 && <li className="text-xs text-ink-3">and {sum.backlog.length - 6} more</li>}
             </ul>
           )}
-        </Card>
-        <Card title="Daily study hours" sub="Stacked by activity" className="lg:col-span-2" action={<Seg value={range} onChange={setRange} options={[{ id: '14', label: '14 days' }, { id: '30', label: '30 days' }, { id: '90', label: '90 days' }]} />}>
-          <Bars data={daily} xKey="date" series={CAT_SERIES} stacked fmtX={fmtShort} fmtLabel={fmtDate} refY={target} refLabel={`Target ${target}h`} empty={logFirst} />
-        </Card>
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Card title="Weekly study hours" sub="Last 12 weeks, week starting Monday">
-          <Bars data={weekly} xKey="week" series={CAT_SERIES} stacked fmtX={fmtShort} fmtLabel={(w) => `Week of ${fmtDate(w)}`} empty={logFirst} />
-        </Card>
-        <Card title="Monthly trend" sub="Total hours per month">
-          <Bars data={monthly} xKey="month" series={[{ key: 'total', label: 'Total hours', color: 'var(--s1)' }]} fmtX={(m) => fmtMonth(m).slice(0, 3)} fmtLabel={fmtMonth} empty={logFirst} />
-        </Card>
-        <Card title="Subject-wise syllabus completion">
-          <HBars max={100} fmt={pct} rows={sum.ss.map((s) => ({ key: s.subject.id, label: s.subject.short, value: s.completion, color: `var(--s${s.subject.slot})`, note: `${s.completed}/${s.chapters.length} chapters complete` }))} empty={<Empty title="No progress recorded yet">Mark lectures, practice and revisions in the Syllabus Tracker.</Empty>} />
-        </Card>
-        <Card title="Subject-wise study hours">
-          <HBars fmt={(v) => fmtHM(v)} rows={sum.ss.map((s) => ({ key: s.subject.id, label: s.subject.short, value: s.minutes, color: `var(--s${s.subject.slot})` }))} empty={logFirst} />
-        </Card>
-        <Card title="Group 1 vs Group 2" sub="Average of each group's three papers">
-          <HBars
-            max={100}
-            fmt={pct}
-            rows={sum.comp.papers.map((p) => ({ key: String(p.paper), label: `G${p.group} · P${p.paper}`, value: p.completion, color: p.group === 1 ? 'var(--s1)' : 'var(--s2)', note: p.name }))}
-            empty={<Empty title="No progress recorded yet" />}
-          />
-          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-4 text-sm">
-            <div>
-              <span className="text-ink-3">Group 1</span> <span className="tnum font-semibold">{sum.comp.g1.toFixed(1)}%</span>
-            </div>
-            <div>
-              <span className="text-ink-3">Group 2</span> <span className="tnum font-semibold">{sum.comp.g2.toFixed(1)}%</span>
-            </div>
-          </div>
-        </Card>
-        <Card title="Lecture hours vs practice hours" sub="Per week">
-          <Bars data={weekly} xKey="week" series={[CAT_SERIES[0], CAT_SERIES[2]]} fmtX={fmtShort} fmtLabel={(w) => `Week of ${fmtDate(w)}`} empty={logFirst} />
-          {!noSessions && (
-            <p className="mt-3 text-[13px] text-ink-3">
-              Overall: {hrs(sum.totals.lecture)}h lectures to {hrs(sum.totals.practice)}h practice.
-            </p>
-          )}
-        </Card>
-        <Card title="Revision progress" sub="Chapters by number of revisions done">
-          <HBars
-            max={sum.cs.length}
-            fmt={(v) => `${v}`}
-            rows={['Never revised', 'Revised once', 'Revised twice', 'Revised 3 times'].map((label, i) => ({ key: label, label, value: revCounts[i], color: i === 0 ? 'var(--ink-3)' : 'var(--s4)' }))}
-          />
         </Card>
         <Card title="Study consistency" sub="Each square is a day; darker means more hours">
           <Heatmap minutes={heat} from={heatFrom} to={t} />

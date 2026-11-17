@@ -2,23 +2,23 @@ import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useSubjects } from '../components/SessionForm'
 import { Badge, Button, Card, ConfirmButton, Dot, Empty, Field, Modal, num, PageHeader, Progress, statusTone, useToast, cx } from '../components/ui'
-import { markLecture, setRevision } from '../lib/actions'
+import { markLecture } from '../lib/actions'
 import type { ChapterStats, ChapterStatus } from '../lib/analytics'
 import { newChapter } from '../lib/seed'
 import { useStore } from '../lib/store'
 import type { Chapter } from '../lib/types'
 
-const STATUSES: ChapterStatus[] = ['Not Started', 'In Progress', 'Lectures Completed', 'Practice Pending', 'Revision Pending', 'Completed']
+const STATUSES: ChapterStatus[] = ['Not Started', 'In Progress', 'Lectures Completed']
 
 function ChapterForm({ ch, isNew, onClose }: { ch: Chapter; isNew: boolean; onClose: () => void }) {
   const { put } = useStore()
   const toast = useToast()
-  const [f, setF] = useState({ name: ch.name, total: String(ch.totalLectures || ''), target: String(ch.questionTarget || ''), manual: String(ch.questionsManual || '') })
+  const [f, setF] = useState({ name: ch.name, total: String(ch.totalLectures || '') })
   const [err, setErr] = useState('')
   const save = () => {
     if (!f.name.trim()) return setErr('Chapter name is required.')
-    if (num(f.total) < 0 || num(f.target) < 0 || num(f.manual) < 0) return setErr('Counts cannot be negative.')
-    put('chapters', { ...ch, name: f.name.trim(), totalLectures: Math.round(num(f.total)), questionTarget: Math.round(num(f.target)), questionsManual: Math.round(num(f.manual)) })
+    if (num(f.total) < 0) return setErr('The lecture count cannot be negative.')
+    put('chapters', { ...ch, name: f.name.trim(), totalLectures: Math.round(num(f.total)) })
     toast(isNew ? 'Chapter added' : 'Chapter updated')
     onClose()
   }
@@ -28,14 +28,8 @@ function ChapterForm({ ch, isNew, onClose }: { ch: Chapter; isNew: boolean; onCl
         <Field label="Chapter name" className="sm:col-span-2">
           <input className="inp" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         </Field>
-        <Field label="Total lectures" hint="As per your faculty's batch.">
+        <Field label="Total lectures" hint="As per your faculty's batch." className="sm:col-span-2">
           <input type="number" min="0" className="inp" value={f.total} onChange={(e) => setF({ ...f, total: e.target.value })} />
-        </Field>
-        <Field label="Question-practice target">
-          <input type="number" min="0" className="inp" value={f.target} onChange={(e) => setF({ ...f, target: e.target.value })} />
-        </Field>
-        <Field label="Questions practised outside the log" hint="Added to questions from logged sessions and tests." className="sm:col-span-2">
-          <input type="number" min="0" className="inp" value={f.manual} onChange={(e) => setF({ ...f, manual: e.target.value })} />
         </Field>
       </div>
       {err && (
@@ -54,7 +48,7 @@ function ChapterForm({ ch, isNew, onClose }: { ch: Chapter; isNew: boolean; onCl
 }
 
 export default function Syllabus() {
-  const { sum, put, putMany, del, data } = useStore()
+  const { sum, put, putMany, del } = useStore()
   const { subjects } = useSubjects()
   const [params, setParams] = useSearchParams()
   const sid = params.get('s') && subjects.some((s) => s.id === params.get('s')) ? params.get('s')! : (subjects[0]?.id ?? '')
@@ -63,7 +57,6 @@ export default function Syllabus() {
   const [edit, setEdit] = useState<{ ch: Chapter; isNew: boolean } | null>(null)
   const ss = sum.ss.find((s) => s.subject.id === sid)
   const rows = useMemo(() => (ss?.chapters ?? []).filter((c) => (!fst || c.status === fst) && c.chapter.name.toLowerCase().includes(q.trim().toLowerCase())), [ss, q, fst])
-  const req = data.settings.requiredRevisions
 
   const move = (c: ChapterStats, dir: -1 | 1) => {
     const list = ss!.chapters.map((x) => x.chapter)
@@ -77,7 +70,7 @@ export default function Syllabus() {
 
   return (
     <>
-      <PageHeader title="Syllabus Tracker" sub={`A chapter is Completed only when lectures, practice and ${req} revision${req > 1 ? 's' : ''} are all done.`}>
+      <PageHeader title="Syllabus Tracker" sub="Tick lectures off as you watch them. Chapters are tracked by lectures for now.">
         <Button variant="primary" onClick={() => setEdit({ ch: newChapter(sid, '', ss?.chapters.length ?? 0), isNew: true })}>
           + Add chapter
         </Button>
@@ -157,20 +150,8 @@ export default function Syllabus() {
                             +
                           </Button>
                         </div>
-                        <span className="tnum text-ink-2">
-                          Questions {c.questions}/{ch.questionTarget || '–'}
-                        </span>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                        {[0, 1, 2].map((i) => (
-                          <label key={i} className="inline-flex min-h-9 items-center gap-1.5">
-                            <input type="checkbox" className="size-4 accent-(--accent)" checked={ch.revisions[i].done} onChange={(e) => put('chapters', setRevision(ch, i, { done: e.target.checked }))} />R{i + 1}
-                          </label>
-                        ))}
-                        <label className="inline-flex min-h-9 items-center gap-1.5">
-                          <input type="checkbox" className="size-4 accent-(--accent)" checked={ch.rtpDone} onChange={(e) => put('chapters', { ...ch, rtpDone: e.target.checked })} />
-                          RTP/MTP/PYQ
-                        </label>
                         <span className="ml-auto">
                           <Button size="sm" variant="ghost" onClick={() => setEdit({ ch, isNew: false })}>
                             Edit
@@ -187,9 +168,6 @@ export default function Syllabus() {
                     <th>#</th>
                     <th>Chapter</th>
                     <th>Lectures</th>
-                    <th>Questions practised</th>
-                    <th>RTP/MTP/PYQ</th>
-                    <th>Revisions</th>
                     <th>Status</th>
                     <th>Progress</th>
                     <th />
@@ -218,21 +196,6 @@ export default function Syllabus() {
                             </Button>
                           </div>
                           <div className="tnum mt-1 text-xs text-ink-3">{Math.round(c.lecturePct)}% watched</div>
-                        </td>
-                        <td className="tnum whitespace-nowrap">
-                          {c.questions}
-                          <span className="text-ink-3"> / {ch.questionTarget || 'no target'}</span>
-                          {c.graded > 0 && <div className="text-xs text-ink-3">{Math.round((100 * c.correct) / c.graded)}% correct of {c.graded} checked</div>}
-                        </td>
-                        <td>
-                          <input type="checkbox" aria-label={`RTP/MTP/PYQ done for ${ch.name}`} className="size-4 accent-(--accent)" checked={ch.rtpDone} onChange={(e) => put('chapters', { ...ch, rtpDone: e.target.checked })} />
-                        </td>
-                        <td className="whitespace-nowrap">
-                          {[0, 1, 2].map((i) => (
-                            <label key={i} className="mr-2.5 inline-flex items-center gap-1 text-[13px]">
-                              <input type="checkbox" aria-label={`Revision ${i + 1} done for ${ch.name}`} className="size-4 accent-(--accent)" checked={ch.revisions[i].done} onChange={(e) => put('chapters', setRevision(ch, i, { done: e.target.checked }))} />R{i + 1}
-                            </label>
-                          ))}
                         </td>
                         <td>
                           <Badge tone={statusTone(c.status)}>{c.status}</Badge>

@@ -69,8 +69,10 @@ interface ChartProps {
 const hasData = (data: Row[], series: Series[]) => data.some((r) => series.some((s) => Number(r[s.key]) > 0))
 const hoursFmt = (v: number) => fmtHM(v * 60)
 
-export function Bars({ data, xKey, series, height = 240, fmtX, fmtLabel, fmtValue = hoursFmt, empty, stacked, yMax, refY, refLabel }: ChartProps & { stacked?: boolean }) {
-  if (!hasData(data, series)) return <>{empty ?? <Empty title="No data yet" />}</>
+export function Bars({ data, xKey, series: allSeries, height = 240, fmtX, fmtLabel, fmtValue = hoursFmt, empty, stacked, yMax, refY, refLabel }: ChartProps & { stacked?: boolean }) {
+  if (!hasData(data, allSeries)) return <>{empty ?? <Empty title="No data yet" />}</>
+  // Categories that were never logged (practice, revision) stay out of the legend and bars.
+  const series = allSeries.filter((s) => data.some((r) => Number(r[s.key]) > 0))
   return (
     <div>
       <Legend series={series} />

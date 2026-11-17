@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { overlapping } from '../lib/analytics'
 import { durationBetween, fmtHM, today, uid } from '../lib/dates'
 import { useStore } from '../lib/store'
-import { ACTIVITIES, type Activity, type Session } from '../lib/types'
+import { ACTIVITIES, LOG_ACTIVITIES, type Activity, type Session } from '../lib/types'
 import { Button, Field, Modal, num, useToast } from './ui'
 
 export function useSubjects() {
@@ -40,9 +40,9 @@ export function SessionForm({ initial, onClose, lockActivity }: { initial?: Part
   const set = (patch: Partial<typeof f>) => setF((x) => ({ ...x, ...patch }))
   const timed = !!(f.start && f.end)
   const duration = timed ? durationBetween(f.start, f.end) : Math.round(num(f.manualMin))
-  const acts = lockActivity ? ACTIVITIES.filter((a) => lockActivity.includes(a.id)) : ACTIVITIES
+  const acts = lockActivity ? ACTIVITIES.filter((a) => lockActivity.includes(a.id)) : ACTIVITIES.filter((a) => LOG_ACTIVITIES.some((l) => l.id === a.id) || a.id === initial?.activity)
   const isLecture = f.activity === 'lecture'
-  const hasQ = f.activity !== 'lecture'
+  const hasQ = f.activity === 'practice' || f.activity === 'rtp' || f.activity === 'mock'
 
   const save = () => {
     if (!f.date) return setErr('Pick a date.')

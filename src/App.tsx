@@ -11,9 +11,6 @@ const Planner = lazy(() => import('./pages/Planner'))
 const Subjects = lazy(() => import('./pages/Subjects'))
 const Syllabus = lazy(() => import('./pages/Syllabus'))
 const Lectures = lazy(() => import('./pages/Lectures'))
-const Practice = lazy(() => import('./pages/Practice'))
-const Revision = lazy(() => import('./pages/Revision'))
-const Tests = lazy(() => import('./pages/Tests'))
 const Backlog = lazy(() => import('./pages/Backlog'))
 const Weekly = lazy(() => import('./pages/Weekly'))
 const Monthly = lazy(() => import('./pages/Monthly'))
@@ -48,9 +45,6 @@ function Gate() {
           <Route path="subjects" element={<Subjects />} />
           <Route path="syllabus" element={<Syllabus />} />
           <Route path="lectures" element={<Lectures />} />
-          <Route path="practice" element={<Practice />} />
-          <Route path="revision" element={<Revision />} />
-          <Route path="tests" element={<Tests />} />
           <Route path="backlog" element={<Backlog />} />
           <Route path="weekly" element={<Weekly />} />
           <Route path="monthly" element={<Monthly />} />

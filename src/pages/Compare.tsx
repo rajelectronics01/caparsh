@@ -1,16 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bars, HBars, Lines, type Series } from '../components/charts'
-import { Badge, Button, Card, Empty, Field, PageHeader, pct, useToast, cx } from '../components/ui'
-import { seriesDaily, seriesWeekly, summarize, type Summary } from '../lib/analytics'
+import { HBars } from '../components/charts'
+import { SessionLines } from '../components/SessionLines'
+import { Badge, Button, Card, Empty, Field, PageHeader, Seg, useToast } from '../components/ui'
+import { minutesBySubject, sessionsOn, summarize } from '../lib/analytics'
 import { backend } from '../lib/backend'
-import { addDays, fmtDate, fmtHM, fmtShort, today } from '../lib/dates'
+import { addDays, fmtDate, fmtDay, fmtHM, timeToMin, today } from '../lib/dates'
 import { useStore } from '../lib/store'
-import type { Data } from '../lib/types'
-
-const avgScore = (d: Data) => {
-  const s = d.tests.filter((t) => t.totalMarks > 0)
-  return s.length ? s.reduce((a, t) => a + (100 * t.marks) / t.totalMarks, 0) / s.length : null
-}
 
 export function LinkFriend() {
   const { user, refreshFriends } = useStore()
@@ -60,17 +55,49 @@ export function LinkFriend() {
   )
 }
 
+/** A day on a 24-hour line: one block per timed session, coloured by subject. */
+function DayStrip({ sessions, subjects }: { sessions: ReturnType<typeof sessionsOn>; subjects: { id: string; slot: number; short: string }[] }) {
+  const timed = sessions.filter((s) => s.start && s.end)
+  return (
+    <div>
+      <div className="relative h-7 border-2 border-ink bg-surface-2" role="img" aria-label="Study times across the day">
+        {[6, 12, 18].map((h) => (
+          <span key={h} className="absolute inset-y-0 border-l border-dashed border-ink-3" style={{ left: `${(h / 24) * 100}%` }} />
+        ))}
+        {timed.map((s) => {
+          const a = timeToMin(s.start!)
+          let b = timeToMin(s.end!)
+          if (b <= a) b = 1440 // crossing midnight: draw to the end of the day
+          const sub = subjects.find((x) => x.id === s.subjectId)
+          return <span key={s.id} title={`${sub?.short ?? ''} ${s.start}–${s.end}`} className="absolute inset-y-0 border-x border-ink" style={{ left: `${(a / 1440) * 100}%`, width: `${Math.max(0.8, ((b - a) / 1440) * 100)}%`, background: `var(--s${sub?.slot ?? 1})` }} />
+        })}
+      </div>
+      <div className="tnum mt-0.5 flex justify-between text-[10px] text-ink-3">
+        <span>00</span>
+        <span>06</span>
+        <span>12</span>
+        <span>18</span>
+        <span>24</span>
+      </div>
+    </div>
+  )
+}
+
+type Range = 'today' | '7' | '30' | 'all'
+
 export default function Compare() {
   const { user, data, sum, friends, friendData, refreshFriends } = useStore()
   const t = today()
   const [fid, setFid] = useState('')
   const [loading, setLoading] = useState(true)
+  const [range, setRange] = useState<Range>('7')
+  const [date, setDate] = useState(t)
   useEffect(() => {
     refreshFriends()
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [refreshFriends])
-  // Realtime pushes changes when the connection allows it; this refresh keeps the comparison current when it does not.
+  // Realtime pushes changes when the connection allows it; this keeps the screen current when it does not.
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === 'visible') void refreshFriends().catch(() => {})
@@ -84,67 +111,60 @@ export default function Compare() {
   }, [refreshFriends])
   const friend = friends.find((f) => f.id === fid) ?? friends[0]
   const fd = friend ? friendData[friend.id] : undefined
-  const fs: Summary | null = useMemo(() => (fd ? summarize(fd, t) : null), [fd, t])
+  const fs = useMemo(() => (fd ? summarize(fd, t) : null), [fd, t])
 
   if (!friend)
     return (
       <>
-        <PageHeader title="Compare with Friend" sub="Side-by-side progress, updated live as either of you logs." />
+        <PageHeader title="Compare" sub="You and a friend, side by side." />
         <Card title="Link a friend">{loading ? <p className="text-sm text-ink-3">Checking for linked friends…</p> : <LinkFriend />}</Card>
       </>
     )
   if (!fs || !fd)
     return (
       <>
-        <PageHeader title="Compare with Friend" />
+        <PageHeader title="Compare" />
         <Card>
-          <p className="text-sm text-ink-3">Loading {friend.name}'s data…</p>
+          <p className="text-sm text-ink-3">Loading {friend.name}&apos;s data…</p>
         </Card>
       </>
     )
 
   const me = user?.name ?? 'Me'
-  const SER: Series[] = [
-    { key: 'me', label: me, color: 'var(--s1)' },
-    { key: 'friend', label: friend.name, color: 'var(--s2)' },
-  ]
-  const from = addDays(t, -29)
-  const md = seriesDaily(data.sessions, from, t)
-  const fdaily = seriesDaily(fd.sessions, from, t)
-  const daily = md.map((d, i) => ({ date: d.date, me: d.total / 60, friend: fdaily[i].total / 60 }))
-  let cm = data.sessions.filter((s) => s.date < from).reduce((a, s) => a + s.durationMin, 0)
-  let cf = fd.sessions.filter((s) => s.date < from).reduce((a, s) => a + s.durationMin, 0)
-  const cumulative = md.map((d, i) => ({ date: d.date, me: (cm += d.total) / 60, friend: (cf += fdaily[i].total) / 60 }))
-  const mw = seriesWeekly(data.sessions, 8, t)
-  const fw = seriesWeekly(fd.sessions, 8, t)
-  const weekly = mw.map((w, i) => ({ week: w.week, me: w.total / 60, friend: fw[i].total / 60 }))
-  const ma = avgScore(data)
-  const fa = avgScore(fd)
+  const from = range === 'today' ? t : range === '7' ? addDays(t, -6) : range === '30' ? addDays(t, -29) : '0000-01-01'
+  const mine = minutesBySubject(data, from, t)
+  const theirs = minutesBySubject(fd, from, t)
+  const rows = mine
+    .map((m, i) => ({ subject: m.subject, a: m.minutes, b: theirs.find((x) => x.subject.id === m.subject.id)?.minutes ?? 0, i }))
+    .filter((r) => r.a > 0 || r.b > 0)
+  const totalA = rows.reduce((x, r) => x + r.a, 0)
+  const totalB = rows.reduce((x, r) => x + r.b, 0)
 
-  // higher: true means a larger number is better.
-  const rows: { label: string; a: number | null; b: number | null; fmt: (v: number) => string; higher: boolean }[] = [
-    { label: 'Overall syllabus', a: sum.comp.overall, b: fs.comp.overall, fmt: (v) => `${v.toFixed(1)}%`, higher: true },
-    { label: 'Group 1', a: sum.comp.g1, b: fs.comp.g1, fmt: (v) => `${v.toFixed(1)}%`, higher: true },
-    { label: 'Group 2', a: sum.comp.g2, b: fs.comp.g2, fmt: (v) => `${v.toFixed(1)}%`, higher: true },
-    { label: 'Revision', a: sum.comp.revision, b: fs.comp.revision, fmt: (v) => `${v.toFixed(1)}%`, higher: true },
-    { label: 'Total study time', a: sum.totals.total, b: fs.totals.total, fmt: fmtHM, higher: true },
-    { label: 'Last 7 days', a: sum.last7.total, b: fs.last7.total, fmt: fmtHM, higher: true },
-    { label: 'Last 30 days', a: sum.last30.total, b: fs.last30.total, fmt: fmtHM, higher: true },
-    { label: 'Active study days', a: sum.active, b: fs.active, fmt: String, higher: true },
-    { label: 'Current streak (days)', a: sum.streak.current, b: fs.streak.current, fmt: String, higher: true },
-    { label: 'Chapters completed', a: sum.completed, b: fs.completed, fmt: String, higher: true },
-    { label: 'Average test score', a: ma, b: fa, fmt: pct, higher: true },
-    { label: 'Lectures behind pace', a: sum.lecturesBehind, b: fs.lecturesBehind, fmt: String, higher: false },
-    { label: 'Backlog to clear', a: sum.backlogMin, b: fs.backlogMin, fmt: fmtHM, higher: false },
+  const logA = sessionsOn(data, date)
+  const logB = sessionsOn(fd, date)
+  const sumMin = (l: typeof logA) => l.reduce((a, s) => a + s.durationMin, 0)
+  const lecturesDone = (s: typeof sum) => s.lecturesTotalDone
+  const cards = [
+    { name: me, you: true, s: sum, today: sumMin(sessionsOn(data, t)), color: 'var(--p1)', bar: 'var(--pink)' },
+    { name: friend.name, you: false, s: fs, today: sumMin(sessionsOn(fd, t)), color: 'var(--p3)', bar: 'var(--p2)' },
   ]
-  const lead = (r: (typeof rows)[number]) => (r.a == null || r.b == null || r.a === r.b ? 0 : (r.a > r.b) === r.higher ? 1 : -1)
-  const wins = rows.filter((r) => lead(r) === 1).length
-  const losses = rows.filter((r) => lead(r) === -1).length
-  const empty = <Empty title="Neither of you has logged study time in this period" />
+  const lead = cards[0].s.last7.total === cards[1].s.last7.total ? null : cards[0].s.last7.total > cards[1].s.last7.total ? 0 : 1
+  const legend = (
+    <div className="mb-3 flex flex-wrap gap-4 text-[12.5px] font-bold uppercase">
+      <span className="inline-flex items-center gap-1.5">
+        <span className="size-3 border-2 border-ink" style={{ background: 'var(--pink)' }} />
+        {me}
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="size-3 border-2 border-ink" style={{ background: 'var(--p3)' }} />
+        {friend.name}
+      </span>
+    </div>
+  )
 
   return (
     <>
-      <PageHeader title="Compare with Friend" sub={`${friend.name}'s numbers refresh on their own within about 15 seconds. As of ${fmtDate(t)}.`}>
+      <PageHeader title="Compare" sub={`You and ${friend.name}. Updates by itself every 15 seconds.`}>
         {friends.length > 1 && (
           <select className="inp w-auto!" aria-label="Friend" value={friend.id} onChange={(e) => setFid(e.target.value)}>
             {friends.map((f) => (
@@ -156,78 +176,80 @@ export default function Compare() {
         )}
       </PageHeader>
 
-      <Card title="Head to head" sub={`${me} leads on ${wins} measure${wins === 1 ? '' : 's'}, ${friend.name} on ${losses}.`} pad={false}>
-        <div className="overflow-x-auto px-5 pb-4 pt-2">
-          <table className="tbl min-w-[520px]">
-            <thead>
-              <tr>
-                <th>Measure</th>
-                <th className="text-right!">{me}</th>
-                <th className="text-right!">{friend.name}</th>
-                <th>Ahead</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const l = lead(r)
-                return (
-                  <tr key={r.label}>
-                    <td className="text-ink-2">{r.label}</td>
-                    <td className={cx('tnum text-right', l === 1 && 'font-semibold')}>{r.a == null ? '—' : r.fmt(r.a)}</td>
-                    <td className={cx('tnum text-right', l === -1 && 'font-semibold')}>{r.b == null ? '—' : r.fmt(r.b)}</td>
-                    <td>{l === 0 ? <span className="text-ink-3">Level</span> : <Badge tone={l === 1 ? 'good' : 'warn'}>{l === 1 ? me : friend.name}</Badge>}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {cards.map((c, i) => (
+          <section key={i} className="hard border-2 border-ink p-4 text-[var(--on-color)]" style={{ background: c.color }}>
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="truncate text-lg font-bold">
+                {c.name}
+                {c.you ? ' (you)' : ''}
+              </h2>
+              {lead === i && <Badge tone="good">Ahead this week</Badge>}
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-3">
+              {[
+                ['Today', fmtHM(c.today)],
+                ['Last 7 days', fmtHM(c.s.last7.total)],
+                ['Streak', `${c.s.streak.current} ${c.s.streak.current === 1 ? 'day' : 'days'}`],
+                ['Syllabus', `${c.s.comp.overall.toFixed(1)}%`],
+                ['Lectures done', `${lecturesDone(c.s)}`],
+                ['Behind pace', `${c.s.lecturesBehind}`],
+              ].map(([k, v]) => (
+                <div key={k}>
+                  <dt className="text-[11px] font-bold uppercase tracking-wide opacity-75">{k}</dt>
+                  <dd className="tnum text-xl font-bold">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+      </div>
+
+      <Card className="mt-4" title="Hours by subject" sub={`${me} ${fmtHM(totalA)} · ${friend.name} ${fmtHM(totalB)}`} action={<Seg value={range} onChange={setRange} options={[{ id: 'today', label: 'Today' }, { id: '7', label: '7 days' }, { id: '30', label: '30 days' }, { id: 'all', label: 'All' }]} />}>
+        {legend}
+        <HBars
+          fmt={fmtHM}
+          rows={rows.map((r) => ({ key: r.subject.id, label: r.subject.short, value: r.a, color: 'var(--pink)', value2: r.b, color2: 'var(--p3)' }))}
+          empty={<Empty title="No study logged in this period">Neither of you has logged time for {range === 'today' ? 'today' : 'this range'} yet.</Empty>}
+        />
       </Card>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Card title="Daily study hours" sub="Last 30 days">
-          <Lines data={daily} xKey="date" series={SER} fmtX={fmtShort} fmtLabel={fmtDate} empty={empty} />
-        </Card>
-        <Card title="Cumulative study hours" sub="Running total; the gap between the lines is the lead">
-          <Lines data={cumulative} xKey="date" series={SER} fmtX={fmtShort} fmtLabel={fmtDate} empty={empty} />
-        </Card>
-        <Card title="Weekly study hours" sub="Last 8 weeks">
-          <Bars data={weekly} xKey="week" series={SER} fmtX={fmtShort} fmtLabel={(w) => `Week of ${fmtDate(w)}`} empty={empty} />
-        </Card>
-        <Card title="Syllabus completion by subject" sub={`Top bar ${me}, bottom bar ${friend.name}`}>
-          <HBars
-            max={100}
-            fmt={pct}
-            rows={sum.ss.map((s) => ({ key: s.subject.id, label: s.subject.short, value: s.completion, color: 'var(--s1)', value2: fs.ss.find((x) => x.subject.id === s.subject.id)?.completion ?? 0, color2: 'var(--s2)' }))}
-            empty={<Empty title="No syllabus progress recorded by either of you yet" />}
-          />
-        </Card>
-        <Card title="Where each of you is behind" className="lg:col-span-2">
-          <div className="grid gap-6 sm:grid-cols-2">
-            {[
-              { name: me, s: sum },
-              { name: friend.name, s: fs },
-            ].map(({ name, s }) => (
-              <div key={name}>
-                <h3 className="mb-2 text-sm font-semibold">{name}</h3>
-                {s.backlog.length === 0 ? (
-                  <p className="text-sm text-ink-3">No backlog recorded.</p>
-                ) : (
-                  <ul className="space-y-1.5 text-sm">
-                    {s.backlog.slice(0, 6).map((b) => (
-                      <li key={b.key} className="flex justify-between gap-3">
-                        <span className="truncate">{b.title}</span>
-                        <span className="tnum shrink-0 text-ink-3">{fmtHM(b.minutes)}</span>
-                      </li>
-                    ))}
-                    {s.backlog.length > 6 && <li className="text-xs text-ink-3">and {s.backlog.length - 6} more</li>}
-                  </ul>
-                )}
+      <Card className="mt-4" title="Study log" sub="Who studied what, and when">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <Button aria-label="Previous day" onClick={() => setDate(addDays(date, -1))}>
+            ←
+          </Button>
+          <input type="date" aria-label="Date" className="inp w-auto!" value={date} max={t} onChange={(e) => e.target.value && setDate(e.target.value)} />
+          <Button aria-label="Next day" disabled={date >= t} onClick={() => setDate(addDays(date, 1))}>
+            →
+          </Button>
+          {date !== t && (
+            <Button variant="ghost" onClick={() => setDate(t)}>
+              Today
+            </Button>
+          )}
+          <span className="text-sm font-bold">
+            {fmtDay(date)}, {fmtDate(date)}
+          </span>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {[
+            { name: me + ' (you)', d: data, log: logA },
+            { name: friend.name, d: fd, log: logB },
+          ].map((c) => (
+            <div key={c.name}>
+              <div className="mb-2 flex items-baseline justify-between gap-2">
+                <h3 className="truncate text-sm font-bold">{c.name}</h3>
+                <span className="tnum text-lg font-bold">{fmtHM(sumMin(c.log))}</span>
               </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+              <DayStrip sessions={c.log} subjects={c.d.subjects} />
+              <div className="mt-3">
+                <SessionLines sessions={c.log} subjects={c.d.subjects} chapters={c.d.chapters} empty="Nothing logged this day." />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
     </>
   )
 }

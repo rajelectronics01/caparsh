@@ -29,6 +29,8 @@ export interface ChapterStats {
   revDone: boolean
   status: ChapterStatus
   progress: number // 0..100
+  /** True when the chapter counts as finished under the current focus. */
+  done: boolean
   minutes: number
 }
 
@@ -74,6 +76,7 @@ function aggregate(data: Data) {
 export function chapterStats(data: Data): ChapterStats[] {
   const agg = aggregate(data)
   const req = Math.min(3, Math.max(1, data.settings.requiredRevisions || 1))
+  const lecturesOnly = (data.settings.focus ?? 'lectures') === 'lectures'
   return data.chapters.map((ch) => {
     const a = agg.get(ch.id)
     const marks = ch.lectureMarks.reduce((s, x) => s + x.n, 0)
@@ -91,12 +94,14 @@ export function chapterStats(data: Data): ChapterStats[] {
     // Lectures alone never complete a chapter: all three gates are required.
     let status: ChapterStatus
     if (!started) status = 'Not Started'
+    else if (lecturesOnly) status = lecDone ? 'Lectures Completed' : 'In Progress'
     else if (lecDone && practiceDone && revDone) status = 'Completed'
     else if (!lecDone) status = 'In Progress'
     else if (questions === 0 && !ch.rtpDone && revisionsDone === 0) status = 'Lectures Completed'
     else if (!practiceDone) status = 'Practice Pending'
     else status = 'Revision Pending'
-    const progress = 100 * (0.5 * lecturePct + 0.25 * practicePct + 0.25 * Math.min(1, revisionsDone / req))
+    const progress = lecturesOnly ? 100 * lecturePct : 100 * (0.5 * lecturePct + 0.25 * practicePct + 0.25 * Math.min(1, revisionsDone / req))
+    const done = lecturesOnly ? lecDone : status === 'Completed'
     return {
       chapter: ch,
       lecturesDone,
@@ -112,6 +117,7 @@ export function chapterStats(data: Data): ChapterStats[] {
       revDone,
       status,
       progress,
+      done,
       minutes: a?.min ?? 0,
     }
   })
@@ -165,9 +171,9 @@ export function subjectStats(data: Data, cs: ChapterStats[], todayISO: string): 
         subject,
         chapters,
         completion: mean(chapters.map((c) => c.progress)),
-        completed: chapters.filter((c) => c.status === 'Completed').length,
+        completed: chapters.filter((c) => c.done).length,
         notStarted: chapters.filter((c) => c.status === 'Not Started').length,
-        inProgress: chapters.filter((c) => c.status !== 'Completed' && c.status !== 'Not Started').length,
+        inProgress: chapters.filter((c) => !c.done && c.status !== 'Not Started').length,
         totalLectures,
         lecturesDone,
         lecturesLeft,
@@ -335,7 +341,9 @@ export function backlog(data: Data, cs: ChapterStats[], ss: SubjectStats[], toda
       })
   }
   const subj = new Map(data.subjects.map((s) => [s.id, s]))
+  const full = (data.settings.focus ?? 'lectures') === 'full'
   for (const c of cs) {
+    if (!full) break // practice and revision backlog only exist when those are tracked
     const sh = subj.get(c.chapter.subjectId)?.short ?? ''
     if (c.lecDone && !c.practiceDone) {
       const left = Math.max(0, c.chapter.questionTarget - c.questions)
@@ -518,14 +526,15 @@ export function summarize(data: Data, todayISO: string) {
     totals: t,
     active,
     avgPerActive: active ? t.total / active : 0,
-    completed: cs.filter((c) => c.status === 'Completed').length,
-    inProgress: cs.filter((c) => c.status !== 'Completed' && c.status !== 'Not Started').length,
+    completed: cs.filter((c) => c.done).length,
+    inProgress: cs.filter((c) => !c.done && c.status !== 'Not Started').length,
     pending: cs.filter((c) => c.status === 'Not Started').length,
     daysLeft: diffDays(todayISO, data.settings.examDate),
     streak: streaks(data.sessions, todayISO),
     backlog: bl,
     backlogMin: sum(bl.map((b) => b.minutes)),
     lecturesBehind: sum(ss.map((s) => s.behind)),
+    lecturesTotalDone: sum(ss.map((x) => x.lecturesDone)),
     lecturesLeft: sum(ss.map((s) => s.lecturesLeft)),
     lecturesRemainingMin: sum(ss.map((s) => s.remainingMin)),
     last7,
@@ -576,7 +585,7 @@ export function nextUp(data: Data, s: Summary, todayISO: string, n = 3): Suggest
   if (out.length < n) {
     const recent = (sid: string) => data.sessions.filter((x) => x.subjectId === sid && x.date > addDays(todayISO, -7)).reduce((a, x) => a + x.durationMin, 0)
     const cands = s.ss
-      .map((x) => ({ x, next: x.chapters.find((c) => c.status !== 'Completed') }))
+      .map((x) => ({ x, next: x.chapters.find((c) => !c.done) }))
       .filter((c) => c.next)
       .sort((a, b) => recent(a.x.subject.id) - recent(b.x.subject.id) || a.x.subject.order - b.x.subject.order)
     for (const { x, next } of cands) {
@@ -617,4 +626,21 @@ export function forecast(data: Data, s: Summary, todayISO: string) {
     avgMinPerDay: hours14,
     hasCounts: s.ss.some((x) => x.totalLectures > 0),
   }
+}
+
+// ---------- Comparison helpers ----------
+export interface SubjectMinutes {
+  subject: Subject
+  minutes: number
+}
+/** Minutes per subject for sessions dated within [from, to], in syllabus order. */
+export function minutesBySubject(data: Data, from: string, to: string): SubjectMinutes[] {
+  return [...data.subjects]
+    .sort((a, b) => a.order - b.order)
+    .map((subject) => ({ subject, minutes: data.sessions.filter((s) => s.subjectId === subject.id && s.date >= from && s.date <= to).reduce((a, s) => a + s.durationMin, 0) }))
+}
+
+/** One day's sessions in clock order; untimed sessions come last. */
+export function sessionsOn(data: Data, date: string): Session[] {
+  return data.sessions.filter((s) => s.date === date).sort((a, b) => (a.start ?? '99:99').localeCompare(b.start ?? '99:99'))
 }

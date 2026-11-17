@@ -81,16 +81,13 @@ export default function Settings() {
           <Seg value={theme as 'light' | 'dark' | 'system'} onChange={setTheme} options={[{ id: 'light', label: 'Light' }, { id: 'dark', label: 'Dark' }, { id: 'system', label: 'System' }]} />
         </Card>
 
-        <Card title="Exam and completion rules">
+        <Card title="Exam dates">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Exam date" hint="ICAI has not announced September 2027 dates yet; update when it does.">
               <input type="date" className="inp" value={s.examDate} onChange={(e) => e.target.value && setSettings({ examDate: e.target.value })} />
             </Field>
             <Field label="Preparation start">
               <input type="date" className="inp" value={s.startDate} onChange={(e) => e.target.value && setSettings({ startDate: e.target.value })} />
-            </Field>
-            <Field label="Revisions needed to complete a chapter" hint="Lectures and practice are always required as well." className="sm:col-span-2">
-              <Seg value={String(s.requiredRevisions) as '1' | '2' | '3'} onChange={(v) => setSettings({ requiredRevisions: Number(v) })} options={[{ id: '1', label: '1 revision' }, { id: '2', label: '2 revisions' }, { id: '3', label: '3 revisions' }]} />
             </Field>
           </div>
         </Card>

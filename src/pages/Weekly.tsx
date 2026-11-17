@@ -13,7 +13,7 @@ export default function Weekly() {
   const we = addDays(ws, 6)
   const r = useMemo(() => periodReview(data, ws, we), [data, ws, we])
   const prev = useMemo(() => periodReview(data, addDays(ws, -7), addDays(ws, -1)), [data, ws])
-  const daily = seriesDaily(data.sessions, ws, we).map((d) => ({ date: d.date, lecture: d.lecture / 60, self: d.self / 60, practice: d.practice / 60, revision: d.revision / 60 }))
+  const daily = seriesDaily(data.sessions, ws, we).map((d) => ({ date: d.date, lecture: d.lecture / 60, self: d.self / 60 }))
   const targetTotal = r.bySubject.reduce((a, s) => a + s.targetMin, 0)
   const current = ws === weekStart(t)
   const delta = r.totals.total - prev.totals.total
@@ -49,12 +49,8 @@ export default function Weekly() {
         <Stat label="Active days" value={`${r.activeDays} / 7`} />
         <Stat label="Lectures completed" value={r.lectures} />
         <Stat label="Lecture hours" value={fmtHM(r.totals.lecture)} />
-        <Stat label="Practice hours" value={fmtHM(r.totals.practice)} />
-        <Stat label="Revision hours" value={fmtHM(r.totals.revision)} />
         <Stat label="Chapters completed" value={r.chaptersCompleted.length} tone={r.chaptersCompleted.length ? 'good' : undefined} />
         <Stat label="Backlog generated" value={r.missedCount} hint={r.missedCount ? `${fmtHM(r.missedMin)} of planned work not done` : 'No planned work missed'} tone={r.missedCount ? 'warn' : undefined} />
-        <Stat label="Questions attempted" value={r.qAttempted} hint={r.qAttempted ? `${r.qCorrect} recorded correct` : undefined} />
-        <Stat label="Tests taken" value={r.tests.length} hint={r.avgScore != null ? `Average ${pct(r.avgScore)}` : undefined} />
         <Stat label="Self-study hours" value={fmtHM(r.totals.self)} />
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -112,7 +108,7 @@ export default function Weekly() {
         </Card>
         <Card title="Chapters completed this week">
           {r.chaptersCompleted.length === 0 ? (
-            <p className="text-sm text-ink-3">None yet. A chapter completes when lectures, practice and revision are all done.</p>
+            <p className="text-sm text-ink-3">None yet. A chapter counts once all its lectures are watched.</p>
           ) : (
             <ul className="space-y-1.5 text-sm">
               {r.chaptersCompleted.map((c) => (

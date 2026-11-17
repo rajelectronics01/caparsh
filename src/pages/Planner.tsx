@@ -57,7 +57,7 @@ function PlanForm({ initial, onClose }: { initial: Partial<PlanItem>; onClose: (
         </Field>
         <Field label="Type">
           <select className="inp" value={f.kind} onChange={(e) => set({ kind: e.target.value as PlanKind })}>
-            {PLAN_KINDS.map((k) => (
+            {PLAN_KINDS.filter((k) => (k.id !== 'practice' && k.id !== 'revision') || k.id === f.kind).map((k) => (
               <option key={k.id} value={k.id}>
                 {k.label}
               </option>

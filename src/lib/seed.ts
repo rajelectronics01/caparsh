@@ -143,6 +143,7 @@ export function defaultSettings(): Settings {
     dailyTargetHours: { normal: 5, busy: 3, exam: 1, holiday: 8 },
     weeklyTargets: {},
     requiredRevisions: 1,
+    focus: 'lectures',
     collegeDays: [1, 2, 3, 4, 5, 6],
     collegeStart: '09:00',
     collegeEnd: '14:00',

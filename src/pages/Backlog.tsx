@@ -61,8 +61,6 @@ export default function Backlog() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Stat label="Lectures pending" value={sum.lecturesLeft} hint={`≈ ${fmtHM(sum.lecturesRemainingMin)} in total`} />
         <Stat label="Lectures behind pace" value={sum.lecturesBehind} tone={sum.lecturesBehind ? 'warn' : undefined} hint={`≈ ${fmtHM(count('lecture').reduce((a, b) => a + b.minutes, 0))}`} />
-        <Stat label="Practice backlog" value={count('practice').length} hint="chapters" />
-        <Stat label="Revision backlog" value={count('revision').length} hint="chapters" />
         <Stat label="Missed plans" value={count('plan').length} />
         <Stat label="Time to clear" value={fmtHM(sum.backlogMin)} tone={sum.backlogMin ? 'warn' : 'good'} hint="estimated" />
       </div>
@@ -129,11 +127,11 @@ export default function Backlog() {
         </Card>
       </div>
 
-      <Card className="mt-4" title="Backlog items" pad={false} action={<Seg value={type} onChange={setType} options={[{ id: 'all', label: 'All' }, { id: 'lecture', label: 'Lectures' }, { id: 'practice', label: 'Practice' }, { id: 'revision', label: 'Revision' }, { id: 'plan', label: 'Missed' }]} />}>
+      <Card className="mt-4" title="Backlog items" pad={false} action={<Seg value={type} onChange={setType} options={[{ id: 'all', label: 'All' }, { id: 'lecture', label: 'Lectures' }, { id: 'plan', label: 'Missed' }]} />}>
         <div className="p-5">
           {items.length === 0 ? (
             <Empty title={sum.backlog.length ? 'Nothing of this type' : 'No backlog'}>
-              {sum.backlog.length ? '' : 'Backlog appears when you fall behind a subject target date, finish lectures without practice or revision, pass a revision date, or miss a planned activity.'}
+              {sum.backlog.length ? '' : 'Backlog appears when you fall behind a subject\u2019s lecture target date or miss a planned activity.'}
             </Empty>
           ) : (
             <ul className="divide-y divide-line">
@@ -155,7 +153,7 @@ export default function Backlog() {
           )}
         </div>
       </Card>
-      <p className="mt-3 text-xs text-ink-3">Estimates use each subject's average lecture length, 4 minutes per practice question and 1 hour per revision. As of {fmtDate(t)}.</p>
+      <p className="mt-3 text-xs text-ink-3">Estimates use each subject's average lecture length. As of {fmtDate(t)}.</p>
     </>
   )
 }
