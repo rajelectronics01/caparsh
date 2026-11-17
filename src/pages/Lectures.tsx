@@ -1,31 +1,101 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { HBars } from '../components/charts'
-import { Badge, Button, Card, Dot, Empty, PageHeader, Progress, Stat, num } from '../components/ui'
+import { LectureChecklist } from '../components/LectureChecklist'
+import { Badge, Button, Card, Dot, Empty, PageHeader, Progress, Stat, num, useToast } from '../components/ui'
 import { markLecture } from '../lib/actions'
+import type { ChapterStats } from '../lib/analytics'
 import { fmtDate, fmtHM } from '../lib/dates'
+import { LIST_INFO, planListImport, type ImportPlan, type ListKey } from '../lib/lectureLists'
 import { useStore } from '../lib/store'
+import type { Chapter } from '../lib/types'
 
 export default function Lectures() {
-  const { sum, put } = useStore()
+  const { sum, put, putMany, data } = useStore()
+  const toast = useToast()
   const [open, setOpen] = useState<string | null>(sum.ss[0]?.subject.id ?? null)
+  const [openCh, setOpenCh] = useState<string | null>(null)
   const [q, setQ] = useState('')
+  const [report, setReport] = useState<{ key: ListKey; plan: ImportPlan } | null>(null)
   const total = sum.ss.reduce((a, s) => a + s.totalLectures, 0)
   const done = sum.ss.reduce((a, s) => a + s.lecturesDone, 0)
-  const unset = sum.cs.filter((c) => c.chapter.totalLectures === 0).length
+  const unset = sum.cs.filter((c) => c.totalLectures === 0).length
+  const save = (c: Chapter) => put('chapters', c)
+
+  const load = (key: ListKey) => {
+    const plan = planListImport(data, key)
+    if (!plan.chapters.length) return toast('Those chapters are not in this account, so nothing was loaded.', 'bad')
+    putMany(plan.chapters.map((c) => ({ collection: 'chapters' as const, id: c.id, data: c })))
+    setReport({ key, plan })
+    setOpen(LIST_INFO[key].subjectId)
+    toast(`Loaded ${plan.lectures} lectures into ${LIST_INFO[key].label}`)
+  }
+  const available = (Object.keys(LIST_INFO) as ListKey[]).filter((k) => data.subjects.some((s) => s.id === LIST_INFO[k].subjectId))
+  const listLoaded = (k: ListKey) => sum.cs.some((c) => c.chapter.subjectId === LIST_INFO[k].subjectId && c.hasList)
+
+  const expandable = (c: ChapterStats) => c.hasList || c.totalLectures === 0
+  const counter = (c: ChapterStats, size: 'sm' | 'md') => (
+    <div className="inline-flex items-center gap-1.5">
+      <Button size={size} aria-label={`Remove a lecture from ${c.chapter.name}`} disabled={c.lecturesDone <= 0} onClick={() => save(markLecture(c.chapter, -1))}>
+        −
+      </Button>
+      <span className="tnum min-w-12 text-center font-bold">
+        {c.lecturesDone}/{c.totalLectures}
+      </span>
+      <Button size={size} variant="primary" aria-label={`Mark a lecture done for ${c.chapter.name}`} disabled={c.totalLectures > 0 && c.lecturesDone >= c.totalLectures} onClick={() => save(markLecture(c.chapter, 1))}>
+        +
+      </Button>
+    </div>
+  )
+  const totalInput = (c: ChapterStats, cls: string) =>
+    c.hasList ? (
+      <span className="tnum text-sm">{c.totalLectures} listed</span>
+    ) : (
+      <input type="number" min="0" inputMode="numeric" aria-label={`Total lectures for ${c.chapter.name}`} className={`inp tnum ${cls}`} value={c.chapter.totalLectures || ''} placeholder="0" onChange={(e) => save({ ...c.chapter, totalLectures: Math.max(0, Math.round(num(e.target.value))) })} />
+    )
+  const toggle = (c: ChapterStats) =>
+    expandable(c) ? (
+      <Button size="sm" aria-expanded={openCh === c.chapter.id} aria-label={`Lectures of ${c.chapter.name}`} onClick={() => setOpenCh(openCh === c.chapter.id ? null : c.chapter.id)}>
+        {openCh === c.chapter.id ? 'Hide lectures' : c.hasList ? 'Lectures ▸' : 'Add lectures'}
+      </Button>
+    ) : null
 
   return (
     <>
-      <PageHeader title="Lecture Tracker" sub="Lecture counts are yours to enter: every faculty's batch is different." />
+      <PageHeader title="Lecture Tracker" sub="Tick lectures off as you watch them. Time left is worked out from each lecture's length." />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Stat label="Total lectures" value={total} hint={unset ? `${unset} chapters have no count yet` : undefined} />
-        <Stat label="Completed" value={done} />
+        <Stat label="Total lectures" value={total} hint={unset ? `${unset} chapters have none listed` : undefined} />
+        <Stat label="Watched" value={done} />
         <Stat label="Remaining" value={sum.lecturesLeft} />
-        <Stat label="Est. hours remaining" value={fmtHM(sum.lecturesRemainingMin)} />
+        <Stat label="Time left to watch" value={fmtHM(sum.lecturesRemainingMin)} />
         <Stat label="Behind pace" value={sum.lecturesBehind} tone={sum.lecturesBehind ? 'warn' : undefined} hint="vs your target dates" />
       </div>
 
+      {available.length > 0 && (
+        <Card className="mt-4" title="Your lecture lists" sub="Load the faculty's recorded lectures with their real lengths. Running it again keeps what you have ticked.">
+          <div className="flex flex-wrap gap-2">
+            {available.map((k) => (
+              <Button key={k} className="h-auto min-h-10 w-full whitespace-normal py-2 text-center sm:w-auto" variant={listLoaded(k) ? 'soft' : 'primary'} onClick={() => load(k)}>
+                {listLoaded(k) ? 'Reload' : 'Load'} {LIST_INFO[k].label} ({LIST_INFO[k].faculty})
+              </Button>
+            ))}
+          </div>
+          {report && (
+            <div className="mt-4 space-y-1.5 border-2 border-ink bg-[var(--p4)] p-3 text-sm text-[var(--on-color)]" role="status">
+              <p className="font-bold">
+                Loaded {report.plan.lectures} lectures ({fmtHM(report.plan.minutes)}) into {LIST_INFO[report.key].label}.
+              </p>
+              {report.plan.created.length > 0 && <p>Added chapter: {report.plan.created.join(', ')}.</p>}
+              {report.plan.untouched.length > 0 && <p>No lectures in your list for: {report.plan.untouched.join('; ')}. They stay at 0 until you add lectures or delete the chapter.</p>}
+              {report.plan.mismatches.length > 0 && <p>The platform shows more lectures than were in the list for: {report.plan.mismatches.map((m) => `${m.name} (${m.listed} of ${m.platform})`).join('; ')}. Use “Add lectures” on those chapters for the missing ones.</p>}
+              {report.plan.skipped.length > 0 && <p>Left out (not a syllabus lecture): {report.plan.skipped.join('; ')}.</p>}
+              {report.plan.missing.length > 0 && <p>Not found in this account, so skipped: {report.plan.missing.join(', ')}.</p>}
+            </div>
+          )}
+        </Card>
+      )}
+
       <Card className="mt-4" title="Subject-wise lecture backlog" sub="Lectures still to watch per subject">
-        <HBars fmt={(v) => `${v}`} rows={sum.ss.map((s) => ({ key: s.subject.id, label: s.subject.short, value: s.lecturesLeft, color: `var(--s${s.subject.slot})`, note: `≈ ${fmtHM(s.remainingMin)}` }))} empty={<Empty title="No pending lectures to show">Enter the total lectures for each chapter below and they will appear here.</Empty>} />
+        <HBars fmt={(v) => `${v}`} rows={sum.ss.map((s) => ({ key: s.subject.id, label: s.subject.short, value: s.lecturesLeft, color: `var(--s${s.subject.slot})`, note: `≈ ${fmtHM(s.remainingMin)}` }))} empty={<Empty title="No pending lectures to show">Load your lecture list above, or enter the total lectures for each chapter below.</Empty>} />
       </Card>
 
       <div className="mt-4 mb-3">
@@ -44,17 +114,17 @@ export default function Lectures() {
                   {s.subject.name}
                 </span>
                 <span className="tnum text-sm text-ink-2">
-                  {s.lecturesDone}/{s.totalLectures} done · {s.lecturesLeft} left
+                  {s.lecturesDone}/{s.totalLectures} watched · {s.lecturesLeft} left
                 </span>
                 <span className="tnum text-sm text-ink-3">
-                  avg {fmtHM(s.avgLectureMin)}/lecture ({s.avgIsMeasured ? 'from your log' : 'estimate'}) · {fmtHM(s.lectureMin)} watched · ≈ {fmtHM(s.remainingMin)} left
+                  {s.listedLectures > 0 ? `${fmtHM(s.listedMinutes)} listed · ` : ''}avg {fmtHM(s.avgLectureMin)}/lecture ({s.listedLectures > 0 ? 'from the list' : s.avgIsMeasured ? 'from your log' : 'estimate'}) · ≈ {fmtHM(s.remainingMin)} left to watch
                 </span>
                 {s.behind > 0 && <Badge tone="warn">{s.behind} behind pace</Badge>}
                 {s.subject.lectureTargetDate && <span className="text-xs text-ink-3">target {fmtDate(s.subject.lectureTargetDate)}</span>}
                 <span className="ml-auto text-ink-3">{isOpen ? '▾' : '▸'}</span>
               </button>
               {isOpen && (
-                <div className="overflow-x-auto border-t border-line">
+                <div className="overflow-x-auto border-t-2 border-ink">
                   <ul className="divide-y divide-line md:hidden">
                     {rows.map((c) => (
                       <li key={c.chapter.id} className="space-y-2 px-4 py-3">
@@ -63,64 +133,59 @@ export default function Lectures() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <label className="inline-flex items-center gap-2 text-xs font-bold uppercase">
                             Total
-                            <input type="number" min="0" inputMode="numeric" className="inp tnum w-16! min-h-10! py-1!" value={c.chapter.totalLectures || ''} placeholder="0" onChange={(e) => put('chapters', { ...c.chapter, totalLectures: Math.max(0, Math.round(num(e.target.value))) })} />
+                            {totalInput(c, 'w-16! min-h-10! py-1!')}
                           </label>
-                          <div className="inline-flex items-center gap-2">
-                            <Button aria-label={`Remove a lecture from ${c.chapter.name}`} disabled={c.lecturesDone <= 0} onClick={() => put('chapters', markLecture(c.chapter, -1))}>
-                              −
-                            </Button>
-                            <span className="tnum min-w-12 text-center font-bold">
-                              {c.lecturesDone}/{c.chapter.totalLectures}
-                            </span>
-                            <Button variant="primary" aria-label={`Mark a lecture done for ${c.chapter.name}`} disabled={c.chapter.totalLectures > 0 && c.lecturesDone >= c.chapter.totalLectures} onClick={() => put('chapters', markLecture(c.chapter, 1))}>
-                              +
-                            </Button>
-                          </div>
+                          {counter(c, 'md')}
                         </div>
-                        {c.lecturesLeft > 0 && <div className="tnum text-xs text-ink-3">{c.lecturesLeft} left · ≈ {fmtHM(c.lecturesLeft * s.avgLectureMin)}</div>}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="tnum text-xs text-ink-3">{c.lecturesLeft > 0 ? `${c.lecturesLeft} left · ≈ ${fmtHM(c.remainingMin ?? c.lecturesLeft * s.avgLectureMin)}` : c.totalLectures > 0 ? 'All watched' : ''}</span>
+                          {toggle(c)}
+                        </div>
+                        {openCh === c.chapter.id && <LectureChecklist chapter={c.chapter} onChange={save} />}
                       </li>
                     ))}
                   </ul>
-                  <table className="tbl hidden min-w-[640px] md:table">
+                  <table className="tbl hidden min-w-[760px] md:table">
                     <thead>
                       <tr>
                         <th>Chapter</th>
-                        <th>Total lectures</th>
-                        <th>Completed</th>
-                        <th>Remaining</th>
-                        <th>Est. time left</th>
-                        <th className="w-40">Progress</th>
+                        <th>Lectures</th>
+                        <th>Watched</th>
+                        <th>Left</th>
+                        <th>Time left</th>
+                        <th className="w-36">Progress</th>
+                        <th />
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((c) => (
-                        <tr key={c.chapter.id}>
-                          <td className="max-w-[280px]">{c.chapter.name}</td>
-                          <td>
-                            <input type="number" min="0" aria-label={`Total lectures for ${c.chapter.name}`} className="inp tnum w-20! min-h-8! py-1!" value={c.chapter.totalLectures || ''} placeholder="0" onChange={(e) => put('chapters', { ...c.chapter, totalLectures: Math.max(0, Math.round(num(e.target.value))) })} />
-                          </td>
-                          <td className="whitespace-nowrap">
-                            <div className="inline-flex items-center gap-1.5">
-                              <Button size="sm" aria-label={`Remove a lecture from ${c.chapter.name}`} disabled={c.lecturesDone <= 0} onClick={() => put('chapters', markLecture(c.chapter, -1))}>
-                                −
-                              </Button>
-                              <span className="tnum min-w-8 text-center">{c.lecturesDone}</span>
-                              <Button size="sm" aria-label={`Mark a lecture done for ${c.chapter.name}`} disabled={c.chapter.totalLectures > 0 && c.lecturesDone >= c.chapter.totalLectures} onClick={() => put('chapters', markLecture(c.chapter, 1))}>
-                                +
-                              </Button>
-                              {c.lecturesLeft > 0 && (
-                                <Button size="sm" variant="ghost" onClick={() => put('chapters', markLecture(c.chapter, c.lecturesLeft))}>
-                                  All done
+                        <Fragment key={c.chapter.id}>
+                          <tr>
+                            <td className="max-w-[280px]">{c.chapter.name}</td>
+                            <td>{totalInput(c, 'w-20! min-h-8! py-1!')}</td>
+                            <td className="whitespace-nowrap">
+                              {counter(c, 'sm')}
+                              {c.lecturesLeft > 0 && !c.hasList && (
+                                <Button size="sm" variant="ghost" onClick={() => save(markLecture(c.chapter, c.lecturesLeft))}>
+                                  All
                                 </Button>
                               )}
-                            </div>
-                          </td>
-                          <td className="tnum">{c.lecturesLeft}</td>
-                          <td className="tnum text-ink-2">{c.lecturesLeft ? fmtHM(c.lecturesLeft * s.avgLectureMin) : '—'}</td>
-                          <td>
-                            <Progress value={c.lecturePct} color={`var(--s${s.subject.slot})`} className="h-1.5!" />
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="tnum">{c.lecturesLeft}</td>
+                            <td className="tnum text-ink-2">{c.lecturesLeft ? fmtHM(c.remainingMin ?? c.lecturesLeft * s.avgLectureMin) : '—'}</td>
+                            <td>
+                              <Progress value={c.lecturePct} color={`var(--s${s.subject.slot})`} className="h-1.5!" />
+                            </td>
+                            <td className="text-right">{toggle(c)}</td>
+                          </tr>
+                          {openCh === c.chapter.id && (
+                            <tr>
+                              <td colSpan={7} className="bg-surface-2">
+                                <LectureChecklist chapter={c.chapter} onChange={save} />
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>

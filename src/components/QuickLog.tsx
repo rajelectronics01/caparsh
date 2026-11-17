@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { markLecture } from '../lib/actions'
 import { overlapping } from '../lib/analytics'
 import { durationBetween, fmtHM, minToTime, today, uid } from '../lib/dates'
 import { useStore } from '../lib/store'
@@ -72,6 +73,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
   const [chapterId, setChapter] = useState(initial?.chapterId ?? auto(subjectId))
   const [lec, setLec] = useState(activity === 'lecture' ? 1 : 0)
   const isLecture = activity === 'lecture'
+  const nextLecture = data.chapters.find((c) => c.id === chapterId)?.lectures?.find((l) => !l.done)
 
   const build = (): Session => {
     let start = timed ? from : undefined
@@ -111,6 +113,9 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
     const clash = timed ? overlapping(data.sessions, s) : []
     if (clash.length) return toast(`That overlaps a session already logged at ${clash[0].start}–${clash[0].end}.`, 'bad')
     put('sessions', s)
+    // With a lecture list, logging finished lectures ticks the next ones off in order.
+    const chap = data.chapters.find((c) => c.id === s.chapterId)
+    if (s.activity === 'lecture' && chap?.lectures?.length && lec > 0) put('chapters', markLecture(chap, Math.round(lec)))
     localStorage.setItem('pct.quick', JSON.stringify({ subjectId, activity, min: tapMin }))
     toast(`Logged ${fmtHM(min)} of ${subjects.find((x) => x.id === subjectId)?.short}`)
     onClose()
@@ -199,6 +204,12 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
           </div>
         </Step>
         {isLecture && <Stepper label="Lectures finished" value={lec} onChange={setLec} />}
+        {isLecture && nextLecture && (
+          <p className="-mt-3 text-xs text-ink-2">
+            {lec > 0 ? 'Ticks off' : 'Next in your list'}: <span className="font-bold">{nextLecture.title}</span>
+            {lec > 1 ? ` and ${lec - 1} more` : ''}
+          </p>
+        )}
         <input aria-label="Topic or note" className="inp" placeholder="Topic or note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         <div className="flex flex-col gap-2 sm:flex-row-reverse">
           <button type="button" onClick={save} className="press min-h-14 flex-1 border-2 border-ink bg-hi text-lg font-bold uppercase tracking-wide text-hi-ink">

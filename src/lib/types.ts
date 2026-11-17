@@ -34,13 +34,25 @@ export interface RevisionEntry {
   topicsAgain?: string
 }
 
+/** One recorded lecture from the faculty's batch. */
+export interface Lecture {
+  id: string
+  title: string
+  minutes: number // length; 0 when unknown
+  done: boolean
+  pct?: number // partly watched, 0..99
+  doneAt?: string // date it was ticked off
+}
+
 export interface Chapter {
   id: string
   subjectId: string
   name: string
   order: number
   totalLectures: number
-  lectureMarks: { date: string; n: number }[] // manual +/- marks, dated
+  lectureMarks: { date: string; n: number }[] // manual +/- marks, dated (used when there is no lecture list)
+  /** The faculty's lecture list. When present it is the source of truth for lecture counts and time. */
+  lectures?: Lecture[]
   questionTarget: number
   questionsManual: number // questions practised outside logged sessions
   rtpDone: boolean

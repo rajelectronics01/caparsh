@@ -89,7 +89,7 @@ export async function exportExcel(data: Data) {
       .map((c) => ({
         subject: sub.get(c.chapter.subjectId) ?? '',
         chapter: c.chapter.name,
-        totalLectures: c.chapter.totalLectures,
+        totalLectures: c.totalLectures,
         lecturesDone: c.lecturesDone,
         questionTarget: c.chapter.questionTarget,
         questionsPractised: c.questions,

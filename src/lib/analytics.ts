@@ -16,6 +16,12 @@ export type ChapterStatus = 'Not Started' | 'In Progress' | 'Lectures Completed'
 
 export interface ChapterStats {
   chapter: Chapter
+  totalLectures: number // from the lecture list when there is one
+  hasList: boolean
+  /** Minutes still to watch, exact when the chapter has a lecture list (null otherwise). */
+  remainingMin: number | null
+  listedMin: number // total length of the listed lectures
+  listedKnown: number // listed lectures whose length is known
   lecturesDone: number
   lecturesLeft: number
   lecturePct: number
@@ -77,20 +83,35 @@ export function chapterStats(data: Data): ChapterStats[] {
   const agg = aggregate(data)
   const req = Math.min(3, Math.max(1, data.settings.requiredRevisions || 1))
   const lecturesOnly = (data.settings.focus ?? 'lectures') === 'lectures'
+  const subjectAvg = new Map(data.subjects.map((s) => [s.id, s.avgLectureMin]))
   return data.chapters.map((ch) => {
     const a = agg.get(ch.id)
-    const marks = ch.lectureMarks.reduce((s, x) => s + x.n, 0)
-    let lecturesDone = Math.max(0, marks + (a?.lec ?? 0))
-    if (ch.totalLectures > 0) lecturesDone = Math.min(lecturesDone, ch.totalLectures)
-    const lecturePct = ch.totalLectures > 0 ? lecturesDone / ch.totalLectures : 0
+    const list = ch.lectures?.length ? ch.lectures : null
+    const avgMin = subjectAvg.get(ch.subjectId) ?? 120
+    let totalLectures = ch.totalLectures
+    let lecturesDone: number
+    let lecturePct: number
+    let remainingMin: number | null = null
+    if (list) {
+      // A faculty lecture list is the source of truth: ticked lectures count, partly watched ones count in part.
+      totalLectures = list.length
+      lecturesDone = list.filter((l) => l.done).length
+      lecturePct = list.reduce((x, l) => x + (l.done ? 1 : Math.min(99, l.pct ?? 0) / 100), 0) / list.length
+      remainingMin = list.reduce((x, l) => x + (l.done ? 0 : (l.minutes > 0 ? l.minutes : avgMin) * (1 - Math.min(99, l.pct ?? 0) / 100)), 0)
+    } else {
+      const marks = ch.lectureMarks.reduce((s, x) => s + x.n, 0)
+      lecturesDone = Math.max(0, marks + (a?.lec ?? 0))
+      if (totalLectures > 0) lecturesDone = Math.min(lecturesDone, totalLectures)
+      lecturePct = totalLectures > 0 ? lecturesDone / totalLectures : 0
+    }
     const questions = (a?.q ?? 0) + (ch.questionsManual || 0)
     const qPart = ch.questionTarget > 0 ? Math.min(1, questions / ch.questionTarget) : null
     const practicePct = qPart == null ? (ch.rtpDone ? 1 : 0) : 0.5 * qPart + 0.5 * (ch.rtpDone ? 1 : 0)
     const revisionsDone = ch.revisions.filter((r) => r.done).length
-    const lecDone = ch.totalLectures > 0 && lecturesDone >= ch.totalLectures
+    const lecDone = totalLectures > 0 && lecturesDone >= totalLectures
     const practiceDone = practicePct >= 1
     const revDone = revisionsDone >= req
-    const started = lecturesDone > 0 || questions > 0 || revisionsDone > 0 || ch.rtpDone || !!a?.touched
+    const started = lecturesDone > 0 || !!list?.some((l) => (l.pct ?? 0) > 0) || questions > 0 || revisionsDone > 0 || ch.rtpDone || !!a?.touched
     // Lectures alone never complete a chapter: all three gates are required.
     let status: ChapterStatus
     if (!started) status = 'Not Started'
@@ -104,8 +125,13 @@ export function chapterStats(data: Data): ChapterStats[] {
     const done = lecturesOnly ? lecDone : status === 'Completed'
     return {
       chapter: ch,
+      totalLectures,
+      hasList: !!list,
+      remainingMin,
+      listedMin: list ? list.reduce((x, l) => x + l.minutes, 0) : 0,
+      listedKnown: list ? list.filter((l) => l.minutes > 0).length : 0,
       lecturesDone,
-      lecturesLeft: Math.max(0, ch.totalLectures - lecturesDone),
+      lecturesLeft: Math.max(0, totalLectures - lecturesDone),
       lecturePct: lecturePct * 100,
       questions,
       correct: a?.correct ?? 0,
@@ -137,7 +163,9 @@ export interface SubjectStats {
   lecturesDone: number
   lecturesLeft: number
   avgLectureMin: number
-  avgIsMeasured: boolean
+  avgIsMeasured: boolean // true when the average comes from your log or the faculty list rather than an estimate
+  listedLectures: number
+  listedMinutes: number
   lectureMin: number
   remainingMin: number
   minutes: number
@@ -156,8 +184,12 @@ export function subjectStats(data: Data, cs: ChapterStats[], todayISO: string): 
       const counted = lecSess.filter((s) => (s.lecturesCompleted ?? 0) > 0)
       const countedLectures = sum(counted.map((s) => s.lecturesCompleted ?? 0))
       const avgIsMeasured = countedLectures > 0
-      const avgLectureMin = avgIsMeasured ? sum(counted.map((s) => s.durationMin)) / countedLectures : subject.avgLectureMin
-      const totalLectures = sum(chapters.map((c) => c.chapter.totalLectures))
+      const listedCount = sum(chapters.filter((c) => c.hasList).map((c) => c.totalLectures))
+      const listedMinutes = sum(chapters.map((c) => c.listedMin))
+      const listedKnown = sum(chapters.map((c) => c.listedKnown))
+      const fromList = listedKnown > 0
+      const avgLectureMin = fromList ? listedMinutes / listedKnown : avgIsMeasured ? sum(counted.map((s) => s.durationMin)) / countedLectures : subject.avgLectureMin
+      const totalLectures = sum(chapters.map((c) => c.totalLectures))
       const lecturesDone = sum(chapters.map((c) => c.lecturesDone))
       const lecturesLeft = sum(chapters.map((c) => c.lecturesLeft))
       let expected = 0
@@ -178,9 +210,11 @@ export function subjectStats(data: Data, cs: ChapterStats[], todayISO: string): 
         lecturesDone,
         lecturesLeft,
         avgLectureMin,
-        avgIsMeasured,
+        avgIsMeasured: avgIsMeasured || fromList,
+        listedLectures: listedCount,
+        listedMinutes,
         lectureMin: sum(lecSess.map((s) => s.durationMin)),
-        remainingMin: lecturesLeft * avgLectureMin,
+        remainingMin: sum(chapters.map((c) => c.remainingMin ?? c.lecturesLeft * avgLectureMin)),
         minutes: sum(sess.map((s) => s.durationMin)),
         revisionPct: chapters.length ? (100 * sum(chapters.map((c) => c.revisionsDone))) / (3 * chapters.length) : 0,
         behind: Math.max(0, expected - lecturesDone),
@@ -304,10 +338,15 @@ export function seriesMonthly(sessions: Session[], startISO: string, todayISO: s
 }
 
 export function lecturesInRange(data: Data, from: string, to: string, subjectId?: string) {
-  const chIds = new Set(data.chapters.filter((c) => !subjectId || c.subjectId === subjectId).map((c) => c.id))
+  const inScope = data.chapters.filter((c) => !subjectId || c.subjectId === subjectId)
+  const listed = new Set(inScope.filter((c) => c.lectures?.length).map((c) => c.id))
   let n = 0
-  for (const s of data.sessions) if (s.date >= from && s.date <= to && (!subjectId || s.subjectId === subjectId)) n += s.lecturesCompleted ?? 0
-  for (const c of data.chapters) if (chIds.has(c.id)) for (const mk of c.lectureMarks) if (mk.date >= from && mk.date <= to) n += mk.n
+  // Chapters with a lecture list count lectures by the date they were ticked; the rest by sessions and marks.
+  for (const s of data.sessions) if (s.date >= from && s.date <= to && (!subjectId || s.subjectId === subjectId) && !(s.chapterId && listed.has(s.chapterId))) n += s.lecturesCompleted ?? 0
+  for (const c of inScope) {
+    if (listed.has(c.id)) n += c.lectures!.filter((l) => l.done && l.doneAt && l.doneAt >= from && l.doneAt <= to).length
+    else for (const mk of c.lectureMarks) if (mk.date >= from && mk.date <= to) n += mk.n
+  }
   return n
 }
 
@@ -592,14 +631,16 @@ export function nextUp(data: Data, s: Summary, todayISO: string, n = 3): Suggest
       if (out.length >= n) break
       const c = next!
       const activity: Activity = !c.lecDone ? 'lecture' : !c.practiceDone ? 'practice' : 'revision'
+      const nl = activity === 'lecture' ? c.chapter.lectures?.find((l) => !l.done) : undefined
+      const rec = recent(x.subject.id)
       out.push({
         key: `next-${c.chapter.id}`,
-        title: `${x.subject.short}: ${c.chapter.name}`,
-        why: recent(x.subject.id) === 0 ? 'Not touched in the last 7 days' : `${fmtMin(recent(x.subject.id))} in the last 7 days`,
+        title: nl ? `${x.subject.short}: ${nl.title}` : `${x.subject.short}: ${c.chapter.name}`,
+        why: nl ? `${c.chapter.name}${rec === 0 ? ' · not touched in 7 days' : ''}` : rec === 0 ? 'Not touched in the last 7 days' : `${fmtMin(rec)} in the last 7 days`,
         subjectId: x.subject.id,
         chapterId: c.chapter.id,
         activity,
-        minutes: activity === 'lecture' ? Math.round(x.avgLectureMin) : 60,
+        minutes: nl && nl.minutes > 0 ? Math.round(nl.minutes * (1 - Math.min(99, nl.pct ?? 0) / 100)) : activity === 'lecture' ? Math.round(x.avgLectureMin) : 60,
       })
     }
   }

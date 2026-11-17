@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { overlapping } from '../lib/analytics'
 import { durationBetween, fmtHM, today, uid } from '../lib/dates'
+import { markLecture } from '../lib/actions'
 import { useStore } from '../lib/store'
 import { ACTIVITIES, LOG_ACTIVITIES, type Activity, type Session } from '../lib/types'
 import { Button, Field, Modal, num, useToast } from './ui'
@@ -73,6 +74,8 @@ export function SessionForm({ initial, onClose, lockActivity }: { initial?: Part
     const clash = overlapping(data.sessions, s)
     if (clash.length) return setErr(`This overlaps another session on the same day (${clash[0].start}–${clash[0].end}). Overlapping sessions would double-count hours.`)
     put('sessions', s)
+    const chap = data.chapters.find((c) => c.id === s.chapterId)
+    if (!editing && s.activity === 'lecture' && chap?.lectures?.length && (s.lecturesCompleted ?? 0) > 0) put('chapters', markLecture(chap, Math.round(s.lecturesCompleted!)))
     toast(editing ? 'Session updated' : `Logged ${fmtHM(duration)}`)
     onClose()
   }

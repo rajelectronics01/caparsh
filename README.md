@@ -43,6 +43,10 @@ Reminders are sent by Supabase, not by the website host:
 
 On each phone: open the site, add it to the Home Screen, open it from the Home Screen icon, then *Menu → Settings → Daily alerts → Enable alerts on this device*. On iPhone this works only from the Home Screen icon (iOS 16.4 or later), not from a Safari tab.
 
+## Lecture lists
+
+Each chapter can hold the faculty's recorded lectures with their real lengths. Ticking a lecture updates progress and the exact time left. The Lecture Tracker has buttons that load the Advanced Accounting (Akash Kandoi) and Corporate and Other Laws (Shubham Singhal) lists; running them again keeps what you have ticked. The source text is in `src/lib/data/`, and the mapping of lectures to chapters is in `src/lib/lectureLists.ts`. Logging a lecture session in a chapter with a list ticks the next lectures in order.
+
 ## Parked features
 
 Revision Manager, Question Practice and Tests & Performance are out of the app for now. The full version is saved on the branch `backup/full-features-2026-11-17`. See [docs/PARKED_FEATURES.md](docs/PARKED_FEATURES.md) for what was parked, how progress is counted meanwhile, and how to restore it.

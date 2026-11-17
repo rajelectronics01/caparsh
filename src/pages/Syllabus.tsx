@@ -18,7 +18,7 @@ function ChapterForm({ ch, isNew, onClose }: { ch: Chapter; isNew: boolean; onCl
   const save = () => {
     if (!f.name.trim()) return setErr('Chapter name is required.')
     if (num(f.total) < 0) return setErr('The lecture count cannot be negative.')
-    put('chapters', { ...ch, name: f.name.trim(), totalLectures: Math.round(num(f.total)) })
+    put('chapters', { ...ch, name: f.name.trim(), totalLectures: ch.lectures?.length ? ch.lectures.length : Math.round(num(f.total)) })
     toast(isNew ? 'Chapter added' : 'Chapter updated')
     onClose()
   }
@@ -28,8 +28,8 @@ function ChapterForm({ ch, isNew, onClose }: { ch: Chapter; isNew: boolean; onCl
         <Field label="Chapter name" className="sm:col-span-2">
           <input className="inp" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         </Field>
-        <Field label="Total lectures" hint="As per your faculty's batch." className="sm:col-span-2">
-          <input type="number" min="0" className="inp" value={f.total} onChange={(e) => setF({ ...f, total: e.target.value })} />
+        <Field label="Total lectures" hint={ch.lectures?.length ? 'Counted from the lecture list. Change it in the Lecture Tracker.' : "As per your faculty's batch."} className="sm:col-span-2">
+          <input type="number" min="0" className="inp" disabled={!!ch.lectures?.length} value={ch.lectures?.length ? String(ch.lectures.length) : f.total} onChange={(e) => setF({ ...f, total: e.target.value })} />
         </Field>
       </div>
       {err && (
@@ -129,7 +129,7 @@ export default function Syllabus() {
                             <span className="tnum text-ink-3">{ch.order + 1}. </span>
                             {ch.name}
                           </div>
-                          {ch.totalLectures === 0 && <div className="text-xs text-warn">Set the lecture count to track this chapter</div>}
+                          {c.totalLectures === 0 && <div className="text-xs text-warn">No lectures yet: add them in the Lecture Tracker</div>}
                         </div>
                         <Badge tone={statusTone(c.status)}>{c.status}</Badge>
                       </div>
@@ -144,9 +144,9 @@ export default function Syllabus() {
                             −
                           </Button>
                           <span className="tnum">
-                            {c.lecturesDone}/{ch.totalLectures}
+                            {c.lecturesDone}/{c.totalLectures}
                           </span>
-                          <Button size="sm" aria-label={`Mark a lecture done for ${ch.name}`} disabled={ch.totalLectures > 0 && c.lecturesDone >= ch.totalLectures} onClick={() => put('chapters', markLecture(ch, 1))}>
+                          <Button size="sm" aria-label={`Mark a lecture done for ${ch.name}`} disabled={c.totalLectures > 0 && c.lecturesDone >= c.totalLectures} onClick={() => put('chapters', markLecture(ch, 1))}>
                             +
                           </Button>
                         </div>
@@ -181,7 +181,7 @@ export default function Syllabus() {
                         <td className="tnum text-ink-3">{ch.order + 1}</td>
                         <td className="max-w-[280px]">
                           <div className="font-medium">{ch.name}</div>
-                          {ch.totalLectures === 0 && <div className="text-xs text-warn">Set the lecture count to track this chapter</div>}
+                          {c.totalLectures === 0 && <div className="text-xs text-warn">No lectures yet: add them in the Lecture Tracker</div>}
                         </td>
                         <td className="whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
@@ -189,9 +189,9 @@ export default function Syllabus() {
                               −
                             </Button>
                             <span className="tnum min-w-12 text-center">
-                              {c.lecturesDone}/{ch.totalLectures}
+                              {c.lecturesDone}/{c.totalLectures}
                             </span>
-                            <Button size="sm" aria-label={`Mark a lecture done for ${ch.name}`} disabled={ch.totalLectures > 0 && c.lecturesDone >= ch.totalLectures} onClick={() => put('chapters', markLecture(ch, 1))}>
+                            <Button size="sm" aria-label={`Mark a lecture done for ${ch.name}`} disabled={c.totalLectures > 0 && c.lecturesDone >= c.totalLectures} onClick={() => put('chapters', markLecture(ch, 1))}>
                               +
                             </Button>
                           </div>
