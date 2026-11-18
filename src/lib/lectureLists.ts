@@ -245,3 +245,59 @@ export function watchOrder(chapters: Chapter[]): OrderedLecture[] {
   flat.sort((a, b) => a.pos - b.pos)
   return flat.map((f, i) => ({ chapter: f.chapter, lecture: f.lecture, n: i + 1 }))
 }
+
+// ---------- Lecture units ("one lecture a day") ----------
+/**
+ * A faculty "lecture" can be several recordings: in Advanced Accounting lecture 01 is Part 1 + Part 2 (a few have three),
+ * in Direct Tax a Day can be Part 1 + Part 2. Law lectures are single recordings. A unit is what counts as "one lecture".
+ */
+export function unitOf(subjectId: string, title: string): { key: string; label: string } {
+  if (subjectId === 'aa') {
+    const m = /^(\d{1,3})\b/.exec(title)
+    if (m) return { key: `aa|${m[1]}`, label: `Lecture ${m[1]}` }
+  }
+  if (subjectId === 'dt') {
+    const m = /^day\s*-\s*(\d+)/i.exec(title)
+    if (m) return { key: `dt|${m[1]}`, label: `Day ${m[1]}` }
+  }
+  return { key: `${subjectId}|${title}`, label: title }
+}
+
+export interface LectureUnit {
+  key: string
+  label: string
+  subjectId: string
+  parts: OrderedLecture[]
+}
+
+/** A subject's lectures grouped into units, in the order the faculty teaches them. */
+export function lectureUnits(chapters: Chapter[]): LectureUnit[] {
+  const byKey = new Map<string, LectureUnit>()
+  const out: LectureUnit[] = []
+  for (const o of watchOrder(chapters)) {
+    const u = unitOf(o.chapter.subjectId, o.lecture.title)
+    let unit = byKey.get(u.key)
+    if (!unit) {
+      unit = { key: u.key, label: u.label, subjectId: o.chapter.subjectId, parts: [] }
+      byKey.set(u.key, unit)
+      out.push(unit)
+    }
+    unit.parts.push(o)
+  }
+  return out
+}
+export const unitDone = (u: LectureUnit) => u.parts.every((p) => p.lecture.done)
+/** Minutes still to watch in a unit; recordings with no listed length use the fallback. */
+export const unitRemainingMin = (u: LectureUnit, fallback: number) =>
+  u.parts.reduce((a, p) => a + (p.lecture.done ? 0 : (p.lecture.minutes > 0 ? p.lecture.minutes : fallback) * (1 - Math.min(99, p.lecture.pct ?? 0) / 100)), 0)
+/** The date the unit was finished (the latest part's date), when known. */
+export const unitDoneOn = (u: LectureUnit) => (unitDone(u) ? u.parts.map((p) => p.lecture.doneAt ?? '').sort().pop() || undefined : undefined)
+/** A readable name: the single recording's title, or "Lecture 02 · AS 2" for several parts. */
+export function unitTitle(u: LectureUnit): string {
+  if (u.parts.length === 1) return u.parts[0].lecture.title
+  const first = u.parts[0].lecture.title
+  const i = first.indexOf(' - ')
+  // "01 Part 1 - AS 2" -> "AS 2";  "DAY -1 PART-1 BASIC AND INTRODUCATION" -> "BASIC AND INTRODUCATION"
+  const stripped = first.replace(/^day\s*-\s*\d+\s*(part\s*-?\s*\d+\s*)?/i, '').trim()
+  return `${u.label} · ${i >= 0 ? first.slice(i + 3) : stripped || first}`
+}

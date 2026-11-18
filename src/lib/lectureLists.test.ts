@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { markLecture, toggleLecture } from './actions'
-import { chapterStats, lecturesInRange, nextUp, summarize } from './analytics'
-import { LAW_EXTRA, parseAA, parseDT, parseDuration, parseLaw, planListImport, watchOrder } from './lectureLists'
+import { markLecture, tickLectures, toggleLecture } from './actions'
+import { backlog, chapterStats, dailyLectures, lecturesInRange, nextUp, summarize } from './analytics'
+import { LAW_EXTRA, lectureUnits, parseAA, parseDT, parseDuration, parseLaw, planListImport, unitDone, unitOf, unitRemainingMin, unitTitle, watchOrder } from './lectureLists'
 import { seedRecords } from './seed'
 import { assemble } from './store'
 
@@ -282,14 +282,14 @@ describe('watching order', () => {
     const d = loaded('aa')
     const s = summarize(d, '2026-11-20')
     const n = nextUp(d, s, '2026-11-20', 8).find((x) => x.subjectId === 'aa')!
-    expect(n.title).toBe('Adv Acc: 01 Part 1 - Intro and Sch III')
-    expect(n.why).toContain('Lecture 1')
+    expect(n.title).toBe('Adv Acc: Lecture 01 · Intro and Sch III')
+    expect(n.why).toContain('2 parts')
     // watch the first two, and the next suggestion moves on to lecture 3, which is in a different chapter
     d.chapters = d.chapters.map((c) => (c.id === 'aa-01' ? markLecture(c, 2) : c))
     const n2 = nextUp(d, summarize(d, '2026-11-20'), '2026-11-20', 8).find((x) => x.subjectId === 'aa')!
-    expect(n2.title).toBe('Adv Acc: 02 Part 1 - AS 2')
+    expect(n2.title).toBe('Adv Acc: Lecture 02 · AS 2')
     expect(n2.chapterId).toBe('aa-05')
-    expect(n2.why).toContain('Lecture 3')
+    expect(n2.why).toContain('2 parts')
   })
 })
 
@@ -311,5 +311,164 @@ describe('lecture titles', () => {
     expect(ord[1].lecture.title).toBe('01 Part 2 - Intro and Sch III')
     expect(ord[1].chapter.id).toBe('aa-02')
     expect(chapterStats(d).find((c) => c.chapter.id === 'aa-02')!.totalLectures).toBe(1)
+  })
+})
+
+describe('ticking chosen lectures', () => {
+  it('ticks exactly the lectures chosen, dated to the day watched, and nothing else', () => {
+    const d = fresh()
+    const plan = planListImport(d, 'aa')
+    const ch = plan.chapters.find((c) => c.id === 'aa-12')! // five Buy Back lectures
+    const ids = [ch.lectures![1].id, ch.lectures![3].id] // skip the first, take 2nd and 4th
+    const out = tickLectures(ch, ids, '2026-11-17')
+    expect(out.lectures!.map((l) => l.done)).toEqual([false, true, false, true, false])
+    expect(out.lectures![1].doneAt).toBe('2026-11-17')
+    expect(out.lectures![0].doneAt).toBeUndefined()
+    // already-watched lectures keep their original date, and an empty choice changes nothing
+    const again = tickLectures(out, [ch.lectures![1].id, ch.lectures![2].id], '2026-11-20')
+    expect(again.lectures![1].doneAt).toBe('2026-11-17')
+    expect(again.lectures![2].doneAt).toBe('2026-11-20')
+    expect(tickLectures(ch, [], '2026-11-17')).toBe(ch)
+  })
+  it('a partly watched lecture is finished by ticking it', () => {
+    const d = fresh()
+    const ch = planListImport(d, 'aa').chapters.find((c) => c.id === 'aa-01')!
+    expect(ch.lectures![0].pct).toBe(70)
+    const out = tickLectures(ch, [ch.lectures![0].id], '2026-11-17')
+    expect(out.lectures![0]).toMatchObject({ done: true, pct: undefined })
+  })
+})
+
+describe('one lecture = all its parts', () => {
+  const load = (keys: ('aa' | 'law' | 'dt')[]) => {
+    const d = fresh()
+    for (const k of keys) {
+      const plan = planListImport(d, k)
+      d.chapters = [...d.chapters.map((c) => plan.chapters.find((x) => x.id === c.id) ?? c), ...plan.chapters.filter((x) => !d.chapters.some((c) => c.id === x.id))]
+      d.subjects = d.subjects.map((x) => plan.subjects.find((y) => y.id === x.id) ?? x)
+    }
+    return d
+  }
+  const units = (d: ReturnType<typeof fresh>, sid: string) => lectureUnits(d.chapters.filter((c) => c.subjectId === sid))
+  it('Advanced Accounting: 175 recordings are 86 lectures; Part 1 and Part 2 belong together', () => {
+    const u = units(load(['aa']), 'aa')
+    expect(u).toHaveLength(86)
+    const parts = (label: string) => u.find((x) => x.label === label)!.parts.map((p) => p.lecture.title)
+    expect(parts('Lecture 01')).toEqual(['01 Part 1 - Intro and Sch III', '01 Part 2 - Intro and Sch III'])
+    expect(parts('Lecture 02')).toHaveLength(2)
+    expect(parts('Lecture 48')).toHaveLength(3) // Part 1, 2, 3
+    expect(parts('Lecture 82')).toHaveLength(3)
+    expect(parts('Lecture 85')).toHaveLength(3)
+    expect(parts('Lecture 33')).toHaveLength(3) // Part 1, Part 1 A (motivation), Part 2
+    expect(parts('Lecture 54')).toEqual(['54 Part 1 - AS 1', '54 Part 1 - AS 5']) // two recordings both labelled Part 1
+    expect(parts('Lecture 74')).toEqual(['74 - AS 27']) // a single recording
+    expect(u.reduce((a, x) => a + x.parts.length, 0)).toBe(175)
+  })
+  it('Direct Tax: each Day is a lecture (Day 1 has two parts); Law: every lecture stands alone', () => {
+    const dt = units(load(['dt']), 'dt')
+    expect(dt).toHaveLength(63)
+    expect(dt[0].parts).toHaveLength(2)
+    expect(dt[0].label).toBe('Day 1')
+    const law = units(load(['law']), 'law')
+    expect(law).toHaveLength(94)
+    expect(law.every((x) => x.parts.length === 1)).toBe(true)
+  })
+  it('unit helpers', () => {
+    expect(unitOf('aa', '01 Part 2 - Intro and Sch III')).toEqual({ key: 'aa|01', label: 'Lecture 01' })
+    expect(unitOf('dt', 'Day -2 Basic And Tax Notes').key).toBe('dt|2')
+    expect(unitOf('law', 'Lecture 1.3').key).toBe('law|Lecture 1.3')
+    const d = load(['aa'])
+    const u1 = units(d, 'aa')[0]
+    expect(unitTitle(u1)).toBe('Lecture 01 · Intro and Sch III')
+    expect(unitRemainingMin(u1, 90)).toBeCloseTo(111 * 0.3 + 63, 5) // part 1 is 70% watched
+    const dtUnit = lectureUnits(load(['dt']).chapters.filter((c) => c.subjectId === 'dt'))[0]
+    expect(unitTitle(dtUnit)).toBe('Day 1 · BASIC AND INTRODUCATION')
+    expect(unitDone(u1)).toBe(false)
+  })
+  it('the next-up suggestion is the whole lecture, with both parts pre-selected', () => {
+    const d = load(['aa'])
+    const n = nextUp(d, summarize(d, '2026-11-18'), '2026-11-18', 8).find((x) => x.subjectId === 'aa')!
+    expect(n.title).toBe('Adv Acc: Lecture 01 · Intro and Sch III')
+    expect(n.why).toContain('2 parts')
+    expect(n.lectureKeys).toEqual(['aa-01|aa-01-1', 'aa-01|aa-01-2'])
+    expect(n.minutes).toBe(Math.round(111 * 0.3 + 63))
+  })
+})
+
+describe('the daily Group 1 plan', () => {
+  const load = () => {
+    const d = fresh()
+    for (const k of ['aa', 'law', 'dt'] as const) {
+      const plan = planListImport(d, k)
+      d.chapters = [...d.chapters.map((c) => plan.chapters.find((x) => x.id === c.id) ?? c), ...plan.chapters.filter((x) => !d.chapters.some((c) => c.id === x.id))]
+    }
+    return d
+  }
+  const finish = (d: ReturnType<typeof fresh>, sid: string, n: number, date: string) => {
+    // watch the first n lectures (all their parts), dated `date`
+    const us = lectureUnits(d.chapters.filter((c) => c.subjectId === sid)).slice(0, n)
+    const ids = new Set(us.flatMap((u) => u.parts.map((p) => `${p.chapter.id}|${p.lecture.id}`)))
+    d.chapters = d.chapters.map((c) => (c.lectures ? { ...c, lectures: c.lectures.map((l) => (ids.has(`${c.id}|${l.id}`) ? { ...l, done: true, pct: undefined, doneAt: date } : l)) } : c))
+  }
+  const rows = (d: ReturnType<typeof fresh>, today: string) => dailyLectures(d, summarize(d, today).ss, today)
+  const row = (d: ReturnType<typeof fresh>, today: string, id: string) => rows(d, today).find((r) => r.subject.id === id)!
+
+  it('covers Adv Acc, Law and Direct Tax, and shows GST waiting for Direct Tax', () => {
+    const r = rows(load(), '2026-11-18')
+    expect(r.map((x) => x.subject.id)).toEqual(['aa', 'law', 'dt', 'gst'])
+    expect(r.find((x) => x.subject.id === 'gst')).toMatchObject({ locked: true, startsAfterName: 'Income Tax (Direct Tax)' })
+    expect(r.find((x) => x.subject.id === 'aa')!.next!.label).toBe('Lecture 01')
+  })
+  it('counts one lecture a day from the preparation start: 3 days behind on the 18th with nothing watched', () => {
+    const d = load() // preparation starts 15 Nov
+    expect(row(d, '2026-11-18', 'aa')).toMatchObject({ behind: 3, unitsDone: 0, unitsTotal: 86 })
+    expect(row(d, '2026-11-15', 'aa').behind).toBe(0) // the first day: today's lecture is not behind yet
+    expect(row(d, '2026-11-14', 'aa').behind).toBe(0) // before the start
+  })
+  it('watching today\'s lecture does not clear days already missed; catching up does', () => {
+    const d = load()
+    finish(d, 'aa', 1, '2026-11-18')
+    let a = row(d, '2026-11-18', 'aa')
+    expect(a.doneToday).toHaveLength(1)
+    expect(a.behind).toBe(3) // 15th, 16th, 17th still owed
+    finish(d, 'aa', 4, '2026-11-18') // four lectures today = caught up
+    a = row(d, '2026-11-18', 'aa')
+    expect(a.behind).toBe(0)
+    expect(a.next!.label).toBe('Lecture 05')
+  })
+  it('lectures watched on earlier days count towards the plan', () => {
+    const d = load()
+    finish(d, 'law', 2, '2026-11-16')
+    expect(row(d, '2026-11-18', 'law')).toMatchObject({ unitsDone: 2, behind: 1, doneToday: [] }) // owed 4-2=2, minus today's own
+  })
+  it('a half-watched lecture is not done', () => {
+    const d = load()
+    const ch = d.chapters.find((c) => c.id === 'aa-01')!
+    d.chapters = d.chapters.map((c) => (c.id === 'aa-01' ? { ...ch, lectures: ch.lectures!.map((l, i) => (i === 0 ? { ...l, done: true, doneAt: '2026-11-18' } : l)) } : c))
+    const a = row(d, '2026-11-18', 'aa')
+    expect(a.unitsDone).toBe(0)
+    expect(a.doneToday).toHaveLength(0)
+    expect(a.next!.parts.filter((p) => !p.lecture.done)).toHaveLength(1) // only Part 2 left
+  })
+  it('GST joins the plan the day after Direct Tax is finished', () => {
+    const d = load()
+    d.chapters = d.chapters.map((c) => (c.id === 'gst-01' ? { ...c, lectures: [{ id: 'g1', title: 'GST Lecture 1', minutes: 120, done: false }, { id: 'g2', title: 'GST Lecture 2', minutes: 120, done: false }], totalLectures: 2 } : c))
+    expect(row(d, '2026-11-19', 'gst').locked).toBe(true) // still waiting while Direct Tax lectures remain
+    finish(d, 'dt', 63, '2026-11-20')
+    const g = row(d, '2026-11-21', 'gst')
+    expect(g.locked).toBe(false)
+    expect(g.since).toBe('2026-11-21')
+    expect(g.behind).toBe(0)
+  })
+  it('the backlog lists lectures behind the one-a-day plan with the time they take', () => {
+    const d = load()
+    const s = summarize(d, '2026-11-18')
+    const item = s.backlog.find((b) => b.key === 'daily-aa')!
+    expect(item.title).toBe('Adv Acc: 3 lectures behind the one-a-day plan')
+    const units3 = lectureUnits(d.chapters.filter((c) => c.subjectId === 'aa')).slice(0, 3)
+    expect(item.minutes).toBeCloseTo(units3.reduce((a, u) => a + unitRemainingMin(u, 83), 0), 0)
+    expect(s.backlog.some((b) => b.key === 'lec-aa')).toBe(false) // no second, target-date item for it
+    expect(s.lecturesBehind).toBe(3 + 3 + 3) // Adv Acc, Law and Direct Tax
+    expect(backlog(d, s.cs, s.ss, '2026-11-18').filter((b) => b.key.startsWith('daily-'))).toHaveLength(3)
   })
 })

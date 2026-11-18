@@ -53,3 +53,10 @@ export function setRevision(ch: Chapter, i: number, patch: Partial<RevisionEntry
   if (patch.done === false) revisions[i] = { done: false }
   return { ...ch, revisions }
 }
+
+/** Tick exactly these lectures (by id), dating them to the day they were watched. */
+export function tickLectures(ch: Chapter, ids: string[], date: string): Chapter {
+  if (!ch.lectures?.length || !ids.length) return ch
+  const set = new Set(ids)
+  return { ...ch, lectures: ch.lectures.map((l) => (set.has(l.id) && !l.done ? { ...l, done: true, pct: undefined, doneAt: date } : l)) }
+}

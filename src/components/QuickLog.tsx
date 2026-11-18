@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
-import { markLecture } from '../lib/actions'
-import { watchOrder } from '../lib/lectureLists'
+import { markLecture, tickLectures } from '../lib/actions'
+import { lectureUnits, unitDone, watchOrder } from '../lib/lectureLists'
+import { LecturePicker, lectureKey, remainingMinutes } from './LecturePicker'
 import { overlapping } from '../lib/analytics'
 import { durationBetween, fmtHM, minToTime, today, uid } from '../lib/dates'
 import { useStore } from '../lib/store'
@@ -47,7 +48,10 @@ function Stepper({ value, onChange, step = 1, label }: { value: number; onChange
 }
 
 /** Tap-first logging: subject, activity, duration, done. The full form is one tap away for anything unusual. */
-export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Session>; onClose: () => void; onDetails: (s: Partial<Session>) => void }) {
+/** What the log opens with. `lectureKeys` pre-selects lectures ("chapterId|lectureId"). */
+export type QuickInit = Partial<Session> & { lectureKeys?: string[] }
+
+export function QuickLog({ initial, onClose, onDetails }: { initial?: QuickInit; onClose: () => void; onDetails: (s: Partial<Session>) => void }) {
   const { data, sum, put } = useStore()
   const { subjects, chaptersOf } = useSubjects()
   const toast = useToast()
@@ -67,7 +71,21 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
   const timed = !!(from && to)
   const [subjectId, setSubject] = useState(initial?.subjectId ?? (subjects.some((s) => s.id === last.subjectId) ? last.subjectId! : (subjects[0]?.id ?? '')))
   const [activity, setActivity] = useState<Activity>(initial?.activity ?? (last.activity === 'self' ? 'self' : 'lecture'))
-  const [tapMin, setMin] = useState(initial?.durationMin ?? last.min ?? 60)
+  // Lecture list: tick which lectures this session covered. Starts with the next one selected.
+  const remainingFor = (sid: string) => watchOrder(data.chapters.filter((c) => c.subjectId === sid)).filter((o) => !o.lecture.done)
+  // The default is a whole lecture: every part of the next one still to watch (Advanced Accounting lectures have two or three parts).
+  const defaultPick = (sid: string) => {
+    const unit = lectureUnits(data.chapters.filter((c) => c.subjectId === sid)).find((u) => !unitDone(u))
+    return unit ? unit.parts.filter((p) => !p.lecture.done).map(lectureKey) : []
+  }
+  const clampMin = (m: number) => Math.max(5, Math.min(960, m))
+  const startsSelf = initial?.activity === 'self' || (initial?.activity == null && last.activity === 'self')
+  const startPick = startsSelf ? [] : initial?.lectureKeys?.length ? initial.lectureKeys : defaultPick(subjectId)
+  const startPickMin = Math.round(remainingFor(subjectId).filter((o) => startPick.includes(lectureKey(o))).reduce((a, o) => a + remainingMinutes(o), 0))
+  const [tapMin, setMinRaw] = useState(initial?.durationMin ?? (startPickMin > 0 ? clampMin(startPickMin) : (last.min ?? 60)))
+  // Once you set the time yourself, ticking lectures stops overwriting it.
+  const [durTouched, setDurTouched] = useState(!!initial?.durationMin)
+  const setMin = (m: number) => (setDurTouched(true), setMinRaw(m))
   const min = timed ? durationBetween(from, to) : tapMin
   // Default to the chapter being worked on: the first one in this subject that is not finished.
   const auto = (sid: string) =>
@@ -77,6 +95,36 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
   const [lec, setLec] = useState(activity === 'lecture' ? 1 : 0)
   const isLecture = activity === 'lecture'
   const nextLecture = data.chapters.find((c) => c.id === chapterId)?.lectures?.find((l) => !l.done)
+
+  const [picked, setPicked] = useState<string[]>(startPick)
+  const remaining = remainingFor(subjectId)
+  const hasList = data.chapters.some((c) => c.subjectId === subjectId && c.lectures?.length)
+  const usePicker = isLecture && hasList
+  const pickedSet = new Set(picked)
+  const pickedLectures = remaining.filter((o) => pickedSet.has(lectureKey(o)))
+  const pickedMinutes = Math.round(pickedLectures.reduce((a, o) => a + remainingMinutes(o), 0))
+  // The picked lectures' length is the starting duration, unless a time was typed, tapped, timed or passed in.
+  const applyPicked = (next: string[], sid = subjectId, force = false) => {
+    setPicked(next)
+    const rem = remainingFor(sid).filter((o) => next.includes(lectureKey(o)))
+    const m = Math.round(rem.reduce((a, o) => a + remainingMinutes(o), 0))
+    if ((force || !durTouched) && !timed && m > 0) setMinRaw(clampMin(m))
+    const firstChap = rem[0]?.chapter.id
+    if (firstChap) setChapter(firstChap)
+  }
+  // Keep the picks in teaching order so the session's chapter is the earliest lecture's.
+  const inOrder = (keys: string[]) => {
+    const order = new Map(remaining.map((r, i) => [lectureKey(r), i]))
+    return [...new Set(keys)].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
+  }
+  const togglePick = (o: (typeof remaining)[number]) => {
+    const k = lectureKey(o)
+    applyPicked(inOrder(pickedSet.has(k) ? picked.filter((x) => x !== k) : [...picked, k]))
+  }
+  const toggleMany = (items: typeof remaining, on: boolean) => {
+    const keys = items.map(lectureKey)
+    applyPicked(inOrder(on ? [...picked, ...keys] : picked.filter((x) => !keys.includes(x))))
+  }
 
   const build = (): Session => {
     let start = timed ? from : undefined
@@ -103,7 +151,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
       end,
       durationMin: min,
       topic: note.trim() || undefined,
-      lecturesCompleted: isLecture ? lec : undefined,
+      lecturesCompleted: isLecture ? (usePicker ? pickedLectures.length : lec) : undefined,
       status: 'completed',
     }
   }
@@ -116,9 +164,19 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
     const clash = timed ? overlapping(data.sessions, s) : []
     if (clash.length) return toast(`That overlaps a session already logged at ${clash[0].start}–${clash[0].end}.`, 'bad')
     put('sessions', s)
-    // With a lecture list, logging finished lectures ticks the next ones off in order.
-    const chap = data.chapters.find((c) => c.id === s.chapterId)
-    if (s.activity === 'lecture' && chap?.lectures?.length && lec > 0) put('chapters', markLecture(chap, Math.round(lec)))
+    if (usePicker) {
+      // Tick exactly the lectures that were selected.
+      const byChapter = new Map<string, string[]>()
+      for (const o of pickedLectures) byChapter.set(o.chapter.id, [...(byChapter.get(o.chapter.id) ?? []), o.lecture.id])
+      for (const [cid, ids] of byChapter) {
+        const ch = data.chapters.find((c) => c.id === cid)
+        if (ch) put('chapters', tickLectures(ch, ids, s.date))
+      }
+    } else {
+      // Without a list, finished lectures are counted on the chapter (or the next ones ticked if it has one).
+      const chap = data.chapters.find((c) => c.id === s.chapterId)
+      if (s.activity === 'lecture' && chap?.lectures?.length && lec > 0) put('chapters', markLecture(chap, Math.round(lec)))
+    }
     localStorage.setItem('pct.quick', JSON.stringify({ subjectId, activity, min: tapMin }))
     toast(`Logged ${fmtHM(min)} of ${subjects.find((x) => x.id === subjectId)?.short}`)
     onClose()
@@ -135,7 +193,13 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
                 key={s.id}
                 type="button"
                 aria-pressed={subjectId === s.id}
-                onClick={() => (setSubject(s.id), setChapter(auto(s.id)))}
+                onClick={() => {
+                  setSubject(s.id)
+                  setChapter(auto(s.id))
+                  setDurTouched(false)
+                  if (isLecture) applyPicked(defaultPick(s.id), s.id, true)
+                  else setPicked([])
+                }}
                 className={cx('press flex min-h-14 flex-col items-stretch border-2 border-ink text-[13px] font-bold uppercase', subjectId === s.id ? 'bg-ink text-bg' : 'text-ink')}
                 style={subjectId === s.id ? undefined : { background: `color-mix(in srgb, var(--s${s.slot}) 24%, var(--surface))` }}
               >
@@ -144,6 +208,7 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
               </button>
             ))}
           </div>
+          {!usePicker && (
           <select aria-label="Chapter" className="inp mt-2 text-sm" value={chapterId} onChange={(e) => setChapter(e.target.value)}>
             <option value="">No specific chapter</option>
             {chaptersOf(subjectId).map((c) => (
@@ -152,17 +217,29 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
               </option>
             ))}
           </select>
+          )}
         </Step>
         <Step n={2} title="What did you do">
           <div className="flex flex-wrap gap-2">
             {ACTS.map((a) => (
-              <button key={a.id} type="button" aria-pressed={activity === a.id} {...chip(activity === a.id)} onClick={() => (setActivity(a.id), setLec(a.id === 'lecture' ? Math.max(1, lec) : 0))}>
+              <button key={a.id} type="button" aria-pressed={activity === a.id} {...chip(activity === a.id)} onClick={() => {
+                  setActivity(a.id)
+                  setLec(a.id === 'lecture' ? Math.max(1, lec) : 0)
+                  if (a.id === 'lecture') applyPicked(defaultPick(subjectId))
+                  else setPicked([])
+                }}>
                 {a.label}
               </button>
             ))}
           </div>
         </Step>
-        <Step n={3} title={fromTimer ? 'How long · from the timer' : timed ? 'How long · from the times you typed' : 'How long'}>
+        {usePicker && (
+          <Step n={3} title={`Which lectures? ${pickedLectures.length ? `${pickedLectures.length} selected` : 'none selected'}`}>
+            <LecturePicker remaining={remaining} picked={pickedSet} onToggle={togglePick} onToggleMany={toggleMany} />
+            {pickedLectures.length > 0 && pickedMinutes > 0 && !timed && !durTouched && <p className="mt-1 text-xs text-ink-2">Time starts at the length of the selected lectures. Change it below if you paused or rewatched.</p>}
+          </Step>
+        )}
+        <Step n={usePicker ? 4 : 3} title={fromTimer ? 'How long · from the timer' : timed ? 'How long · from the times you typed' : 'How long'}>
           {!timed && (
             <div className="mb-2 flex flex-wrap gap-2">
               {DURS.map((d) => (
@@ -206,8 +283,8 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
             </label>
           </div>
         </Step>
-        {isLecture && <Stepper label="Lectures finished" value={lec} onChange={setLec} />}
-        {isLecture && nextLecture && (
+        {isLecture && !usePicker && <Stepper label="Lectures finished" value={lec} onChange={setLec} />}
+        {isLecture && !usePicker && nextLecture && (
           <p className="-mt-3 text-xs text-ink-2">
             {lec > 0 ? 'Ticks off' : 'Next in your list'}: <span className="font-bold">{nextLecture.title}</span>
             {lec > 1 ? ` and ${lec - 1} more` : ''}

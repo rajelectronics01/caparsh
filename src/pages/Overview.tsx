@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bars, CAT_SERIES, HBars, Heatmap } from '../components/charts'
 import { SessionLines } from '../components/SessionLines'
-import { Card, Empty, pct, Progress, Ring, Seg, Stat } from '../components/ui'
+import { Badge, Card, Empty, pct, Progress, Ring, Seg, Stat } from '../components/ui'
 import { useShell } from '../components/Layout'
+import { unitTitle } from '../lib/lectureLists'
 import { dailyMap, forecast, nextUp, seriesDaily, seriesMonthly, seriesWeekly, sessionsOn, summarize } from '../lib/analytics'
 import { addDays, fmtDate, fmtDay, fmtHM, fmtMonth, fmtShort, today } from '../lib/dates'
 import { useStore } from '../lib/store'
@@ -104,6 +105,76 @@ export default function Overview() {
         </section>
       </div>
 
+      {sum.daily.length > 0 && (
+        <Card className="mt-4" title="Today's lectures" sub="One lecture from each Group 1 subject, every day. A lecture with two parts means both parts." action={<Link to="/lectures" className="text-sm font-bold underline">Lecture Tracker →</Link>} pad={false}>
+          <ul className="divide-y-2 divide-ink">
+            {sum.daily.map((d) => {
+              const done = d.doneToday.length > 0
+              return (
+                <li key={d.subject.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                  <span className="h-10 w-2 shrink-0" style={{ background: `var(--s${d.subject.slot})` }} />
+                  <div className="min-w-0 flex-1 basis-56">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold uppercase">{d.subject.short}</span>
+                      {d.locked ? <Badge tone="accent">Starts after {d.startsAfterName}</Badge> : done ? <Badge tone="good">Done today</Badge> : <Badge tone="warn">To do today</Badge>}
+                      {d.behind > 0 && <Badge tone="bad">{d.behind} behind</Badge>}
+                    </div>
+                    {d.locked ? (
+                      <div className="text-xs text-ink-3">Waiting until {d.startsAfterName} lectures are all watched.</div>
+                    ) : done ? (
+                      <div className="text-xs text-ink-2">
+                        {d.doneToday.map(unitTitle).join(' · ')}
+                        {d.next ? <span className="text-ink-3"> · next: {unitTitle(d.next)}</span> : <span className="text-ink-3"> · that was the last one</span>}
+                      </div>
+                    ) : d.next ? (
+                      <div className="text-xs text-ink-2">
+                        {unitTitle(d.next)}
+                        <span className="tnum text-ink-3">
+                          {' '}
+                          · {d.next.parts.filter((p) => !p.lecture.done).length > 1 ? `${d.next.parts.filter((p) => !p.lecture.done).length} parts · ` : ''}
+                          {fmtHM(d.nextMin)}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-ink-2">All lectures watched.</div>
+                    )}
+                    {!d.locked && <div className="tnum text-[11px] text-ink-3">{d.unitsDone} of {d.unitsTotal} lectures watched</div>}
+                  </div>
+                  {!d.locked && d.next && (
+                    <button
+                      onClick={() =>
+                        quickLog({
+                          subjectId: d.subject.id,
+                          chapterId: d.next!.parts.find((p) => !p.lecture.done)?.chapter.id,
+                          activity: 'lecture',
+                          lectureKeys: d.next!.parts.filter((p) => !p.lecture.done).map((p) => `${p.chapter.id}|${p.lecture.id}`),
+                        })
+                      }
+                      className="press min-h-10 shrink-0 border-2 border-ink bg-hi px-3 text-xs font-bold uppercase tracking-wide text-hi-ink"
+                    >
+                      {done ? 'Log another' : 'Log it'}
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          {(() => {
+            const open = sum.daily.filter((d) => !d.locked && d.next && d.doneToday.length === 0)
+            const mins = open.reduce((a, d) => a + d.nextMin, 0)
+            const finished = sum.daily.filter((d) => !d.locked && d.doneToday.length > 0).length
+            const active = sum.daily.filter((d) => !d.locked).length
+            return (
+              <div className="tnum border-t-2 border-ink px-4 py-2.5 text-[13px] text-ink-2">
+                {finished} of {active} done today
+                {open.length > 0 && ` · ${fmtHM(mins)} of lectures still to watch today`}
+                {mins > target * 60 && open.length > 0 ? ` (your daily target is ${target}h)` : ''}
+              </div>
+            )
+          })()}
+        </Card>
+      )}
+
       <Card className="mt-4" title={friends.length ? 'You vs friends' : 'Study with a friend'} sub={friends.length ? 'Ranked by last 7 days · each row shows what was studied today · refreshes every 30 seconds' : undefined} action={<Link to="/compare" className="text-sm font-bold underline">{friends.length ? 'Full comparison →' : 'Add a friend →'}</Link>} pad={false}>
         {board.length < 2 ? (
           <p className="p-5 text-sm text-ink-3">{friends.length ? 'Loading your friend\u2019s numbers…' : 'Link a friend with their code and both of your numbers appear here, side by side.'}</p>
@@ -161,7 +232,7 @@ export default function Overview() {
           <ul className="space-y-2">
             {next.map((n) => (
               <li key={n.key}>
-                <button onClick={() => quickLog({ subjectId: n.subjectId, chapterId: n.chapterId, activity: n.activity, durationMin: n.minutes })} className="press flex w-full items-center gap-3 border-2 border-ink bg-surface px-3 py-2.5 text-left hover:bg-surface-2">
+                <button onClick={() => quickLog({ subjectId: n.subjectId, chapterId: n.chapterId, activity: n.activity, durationMin: n.lectureKeys ? undefined : n.minutes, lectureKeys: n.lectureKeys })} className="press flex w-full items-center gap-3 border-2 border-ink bg-surface px-3 py-2.5 text-left hover:bg-surface-2">
                   <span className="h-9 w-2 shrink-0" style={{ background: `var(--s${data.subjects.find((x) => x.id === n.subjectId)?.slot ?? 1})` }} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-bold">{n.title}</span>

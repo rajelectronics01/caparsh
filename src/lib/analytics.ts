@@ -1,5 +1,5 @@
 import { addDays, diffDays, monthKey, rangeDays, weekStart } from './dates'
-import { watchOrder } from './lectureLists'
+import { lectureUnits, unitDone, unitDoneOn, unitRemainingMin, unitTitle, watchOrder, type LectureUnit } from './lectureLists'
 import type { Activity, Chapter, Data, PlanItem, Session, Subject } from './types'
 import { PLAN_KINDS } from './types'
 
@@ -237,6 +237,12 @@ export function subjectStats(data: Data, cs: ChapterStats[], todayISO: string): 
       s.expected = 0
     }
   }
+  // Group 1 subjects with a lecture list follow the one-lecture-a-day plan instead of a target-date pace.
+  for (const s of stats)
+    if (s.subject.group === 1 && s.listedLectures > 0) {
+      s.behind = 0
+      s.expected = 0
+    }
   return stats
 }
 
@@ -383,6 +389,20 @@ export interface BacklogItem {
 
 export function backlog(data: Data, cs: ChapterStats[], ss: SubjectStats[], todayISO: string): BacklogItem[] {
   const items: BacklogItem[] = []
+  for (const d of dailyLectures(data, ss, todayISO)) {
+    if (d.behind <= 0) continue
+    const owed = d.todo.slice(0, d.behind)
+    items.push({
+      key: `daily-${d.subject.id}`,
+      type: 'lecture',
+      subjectId: d.subject.id,
+      title: `${d.subject.short}: ${d.behind} lecture${d.behind > 1 ? 's' : ''} behind the one-a-day plan`,
+      detail: `${d.unitsDone} of ${d.unitsTotal} lectures watched; the plan expects one every day since ${d.since}`,
+      minutes: owed.reduce((a, u) => a + unitRemainingMin(u, d.avgMin), 0),
+      chunkMin: Math.max(30, Math.round(d.avgUnitMin)),
+      count: d.behind,
+    })
+  }
   for (const s of ss) {
     if (s.behind > 0)
       items.push({
@@ -573,6 +593,7 @@ export function summarize(data: Data, todayISO: string) {
   const t = totals(data.sessions)
   const active = activeDays(data.sessions)
   const bl = backlog(data, cs, ss, todayISO)
+  const daily = dailyLectures(data, ss, todayISO)
   const last7 = totals(data.sessions.filter((s) => s.date > addDays(todayISO, -7) && s.date <= todayISO))
   const last30 = totals(data.sessions.filter((s) => s.date > addDays(todayISO, -30) && s.date <= todayISO))
   return {
@@ -589,7 +610,8 @@ export function summarize(data: Data, todayISO: string) {
     streak: streaks(data.sessions, todayISO),
     backlog: bl,
     backlogMin: sum(bl.map((b) => b.minutes)),
-    lecturesBehind: sum(ss.map((s) => s.behind)),
+    daily,
+    lecturesBehind: sum(ss.map((s) => s.behind)) + sum(daily.map((d) => d.behind)),
     lecturesTotalDone: sum(ss.map((x) => x.lecturesDone)),
     lecturesLeft: sum(ss.map((s) => s.lecturesLeft)),
     lecturesRemainingMin: sum(ss.map((s) => s.remainingMin)),
@@ -628,6 +650,8 @@ export interface Suggestion {
   activity: Activity
   minutes: number
   planId?: string
+  /** Lectures to pre-select in the log: "chapterId|lectureId". */
+  lectureKeys?: string[]
 }
 
 /** Up to `n` concrete things to do next: today's plan first, then backlog, then the next unfinished chapter of the most neglected subject. */
@@ -636,7 +660,8 @@ export function nextUp(data: Data, s: Summary, todayISO: string, n = 3): Suggest
   const act = (k: string): Activity => (k === 'lecture' || k === 'practice' || k === 'revision' ? k : 'self')
   for (const p of data.plans.filter((x) => x.date === todayISO && !x.done && isStudyPlan(x)).sort((a, b) => (a.start ?? '99').localeCompare(b.start ?? '99')))
     out.push({ key: `plan-${p.id}`, title: p.title, why: p.start ? `Planned for ${p.start} today` : 'Planned for today', subjectId: p.subjectId, chapterId: p.chapterId, activity: act(p.kind), minutes: p.plannedMin, planId: p.id })
-  for (const b of s.backlog.filter((x) => x.type !== 'plan'))
+  // The one-a-day catch-up is shown in Today's lectures; here the suggestion is the lecture itself.
+  for (const b of s.backlog.filter((x) => x.type !== 'plan' && !x.key.startsWith('daily-')))
     out.push({ key: b.key, title: b.title, why: b.detail, subjectId: b.subjectId, chapterId: b.chapterId, activity: act(b.type), minutes: Math.min(b.minutes, b.chunkMin) })
   if (out.length < n) {
     const recent = (sid: string) => data.sessions.filter((x) => x.subjectId === sid && x.date > addDays(todayISO, -7)).reduce((a, x) => a + x.durationMin, 0)
@@ -648,18 +673,19 @@ export function nextUp(data: Data, s: Summary, todayISO: string, n = 3): Suggest
     for (const { x, next } of cands) {
       if (out.length >= n) break
       // With a faculty lecture list the suggestion is simply the next lecture in the order it is taught.
-      const ord = x.listedLectures > 0 ? watchOrder(x.chapters.map((c) => c.chapter)).find((o) => !o.lecture.done) : undefined
-      if (ord) {
+      const unit = x.listedLectures > 0 ? lectureUnits(x.chapters.map((c) => c.chapter)).find((u) => !unitDone(u)) : undefined
+      if (unit) {
         const rec0 = recent(x.subject.id)
-        const nl0 = ord.lecture
+        const todo = unit.parts.filter((p) => !p.lecture.done)
         out.push({
-          key: `next-${ord.chapter.id}-${nl0.id}`,
-          title: `${x.subject.short}: ${nl0.title}`,
-          why: `Lecture ${ord.n} · ${ord.chapter.name}${rec0 === 0 ? ' · not touched in 7 days' : ''}`,
+          key: `next-${unit.key}`,
+          title: `${x.subject.short}: ${unitTitle(unit)}`,
+          why: `${todo.length > 1 ? `${todo.length} parts · ` : ''}${todo[0].chapter.name}${rec0 === 0 ? ' · not touched in 7 days' : ''}`,
           subjectId: x.subject.id,
-          chapterId: ord.chapter.id,
+          chapterId: todo[0].chapter.id,
           activity: 'lecture',
-          minutes: nl0.minutes > 0 ? Math.round(nl0.minutes * (1 - Math.min(99, nl0.pct ?? 0) / 100)) : Math.round(x.avgLectureMin),
+          minutes: Math.round(unitRemainingMin(unit, x.avgLectureMin)),
+          lectureKeys: todo.map((p) => `${p.chapter.id}|${p.lecture.id}`),
         })
         continue
       }
@@ -723,4 +749,70 @@ export function sessionsOn(data: Data, date: string): Session[] {
 /** True when a subject with a lecture list still has an unwatched lecture. */
 function x_hasUndoneListed(x: SubjectStats, data: Data) {
   return x.listedLectures > 0 && watchOrder(data.chapters.filter((c) => c.subjectId === x.subject.id)).some((o) => !o.lecture.done)
+}
+
+// ---------- One lecture a day (Group 1) ----------
+export interface DailyLecture {
+  subject: Subject
+  locked: boolean
+  startsAfterName?: string
+  /** The lecture to watch next (all its parts), in the faculty's order. */
+  next: LectureUnit | null
+  /** Unwatched lectures in order, starting with `next`. */
+  todo: LectureUnit[]
+  nextMin: number
+  unitsTotal: number
+  unitsDone: number
+  /** Lectures finished today. */
+  doneToday: LectureUnit[]
+  /** Lectures the plan says should be done by yesterday and are not. */
+  behind: number
+  /** Date the one-a-day plan counts from. */
+  since: string
+  avgMin: number
+  avgUnitMin: number
+}
+
+/**
+ * The daily plan: one lecture from each Group 1 subject every day. In Advanced Accounting a lecture is all its parts.
+ * It counts from the preparation start (or from the day after the subject before it was finished, for GST after Direct Tax).
+ */
+export function dailyLectures(data: Data, ss: SubjectStats[], todayISO: string): DailyLecture[] {
+  const out: DailyLecture[] = []
+  for (const s of ss) {
+    if (s.subject.group !== 1) continue
+    if (s.locked) {
+      out.push({ subject: s.subject, locked: true, startsAfterName: s.startsAfterName, next: null, todo: [], nextMin: 0, unitsTotal: 0, unitsDone: 0, doneToday: [], behind: 0, since: '', avgMin: s.avgLectureMin, avgUnitMin: 0 })
+      continue
+    }
+    if (s.listedLectures === 0) continue
+    const units = lectureUnits(data.chapters.filter((c) => c.subjectId === s.subject.id))
+    const todo = units.filter((u) => !unitDone(u))
+    const done = units.filter(unitDone)
+    const doneToday = done.filter((u) => unitDoneOn(u) === todayISO)
+    let since = data.settings.startDate
+    if (s.subject.startsAfter) {
+      const prevDates = data.chapters.filter((c) => c.subjectId === s.subject.startsAfter).flatMap((c) => (c.lectures ?? []).map((l) => l.doneAt ?? ''))
+      const finished = prevDates.sort().pop()
+      if (finished) since = since > addDays(finished, 1) ? since : addDays(finished, 1)
+    }
+    const days = todayISO >= since ? diffDays(since, todayISO) + 1 : 0 // days from `since` to today, inclusive
+    const owed = Math.max(0, days - done.length)
+    const behind = Math.max(0, owed - (doneToday.length >= 1 ? 0 : 1)) // today's own lecture is not "behind" yet
+    out.push({
+      subject: s.subject,
+      locked: false,
+      next: todo[0] ?? null,
+      todo,
+      nextMin: todo[0] ? Math.round(unitRemainingMin(todo[0], s.avgLectureMin)) : 0,
+      unitsTotal: units.length,
+      unitsDone: done.length,
+      doneToday,
+      behind,
+      since,
+      avgMin: s.avgLectureMin,
+      avgUnitMin: units.length ? sum(units.map((u) => unitRemainingMin({ ...u, parts: u.parts.map((p) => ({ ...p, lecture: { ...p.lecture, done: false, pct: undefined } })) }, s.avgLectureMin))) / units.length : 0,
+    })
+  }
+  return out
 }

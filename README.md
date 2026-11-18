@@ -43,6 +43,10 @@ Reminders are sent by Supabase, not by the website host:
 
 On each phone: open the site, add it to the Home Screen, open it from the Home Screen icon, then *Menu → Settings → Daily alerts → Enable alerts on this device*. On iPhone this works only from the Home Screen icon (iOS 16.4 or later), not from a Safari tab.
 
+## Daily lecture plan
+
+Every day: one lecture from each Group 1 subject. A "lecture" is all its recordings: Advanced Accounting lecture 01 is Part 1 + Part 2 (a few have three), a Direct Tax Day can be two parts, a Law lecture is one. The home screen's Today's lectures card shows the next lecture per subject with the combined time, a Log it button that pre-selects every part, a Done today tick, and how many days behind you are (counted from the preparation start; GST counts from the day after Direct Tax is finished). Catch-up lectures appear in the Backlog Manager. The grouping is in `unitOf` in `src/lib/lectureLists.ts`; the plan is `dailyLectures` in `src/lib/analytics.ts`.
+
 ## Friend alerts
 
 When someone logs a new study session, their linked friends get a push notification: "Rohan did DT for 2h 30m. Tum bhi padho, warna tum gaye!". It is sent by `supabase/functions/notify-friends`, triggered by the database (`supabase/friend-alerts.sql`). At most one alert per friend every 15 minutes, only for sessions dated yesterday to tomorrow (so restoring a backup stays silent), and each person can switch it off in Settings. Friends need alerts enabled on their phone (see Phone reminders). It does not work in local mode.

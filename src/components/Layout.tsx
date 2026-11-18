@@ -5,7 +5,7 @@ import { minToTime, toISO } from '../lib/dates'
 import { useReminders } from '../lib/notify'
 import { useStore } from '../lib/store'
 import type { Session } from '../lib/types'
-import { QuickLog } from './QuickLog'
+import { QuickLog, type QuickInit } from './QuickLog'
 import { SessionForm } from './SessionForm'
 import { Button, cx, useToast } from './ui'
 
@@ -38,7 +38,7 @@ const NAV: { group: string; items: { to: string; label: string }[] }[] = [
   { group: '', items: [{ to: '/settings', label: 'Settings' }] },
 ]
 
-export type Shell = { quickLog: (s?: Partial<Session>) => void }
+export type Shell = { quickLog: (s?: QuickInit) => void }
 export const useShell = () => useOutletContext<Shell>()
 
 export function useTheme() {
@@ -133,7 +133,7 @@ export function Layout() {
   const { user, data, sum } = useStore()
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<Partial<Session> | null>(null)
-  const [quick, setQuick] = useState<Partial<Session> | null>(null)
+  const [quick, setQuick] = useState<QuickInit | null>(null)
   const [theme, setTheme] = useTheme()
   const toast = useToast()
   const loc = useLocation()
