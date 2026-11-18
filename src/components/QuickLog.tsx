@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { markLecture } from '../lib/actions'
+import { watchOrder } from '../lib/lectureLists'
 import { overlapping } from '../lib/analytics'
 import { durationBetween, fmtHM, minToTime, today, uid } from '../lib/dates'
 import { useStore } from '../lib/store'
@@ -69,7 +70,9 @@ export function QuickLog({ initial, onClose, onDetails }: { initial?: Partial<Se
   const [tapMin, setMin] = useState(initial?.durationMin ?? last.min ?? 60)
   const min = timed ? durationBetween(from, to) : tapMin
   // Default to the chapter being worked on: the first one in this subject that is not finished.
-  const auto = (sid: string) => sum.cs.filter((c) => c.chapter.subjectId === sid && !c.done).sort((a, b) => a.chapter.order - b.chapter.order)[0]?.chapter.id ?? ''
+  const auto = (sid: string) =>
+    watchOrder(data.chapters.filter((c) => c.subjectId === sid)).find((o) => !o.lecture.done)?.chapter.id ??
+    sum.cs.filter((c) => c.chapter.subjectId === sid && !c.done).sort((a, b) => a.chapter.order - b.chapter.order)[0]?.chapter.id ?? ''
   const [chapterId, setChapter] = useState(initial?.chapterId ?? auto(subjectId))
   const [lec, setLec] = useState(activity === 'lecture' ? 1 : 0)
   const isLecture = activity === 'lecture'

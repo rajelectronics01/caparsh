@@ -1,17 +1,24 @@
 import { useState } from 'react'
 import { toggleLecture } from '../lib/actions'
 import { fmtHM, uid } from '../lib/dates'
-import type { Chapter } from '../lib/types'
+import type { Chapter, Lecture } from '../lib/types'
 import { Button, ConfirmButton, cx, num } from './ui'
 
 /** One chapter's recorded lectures: tick them off, fix a length, add or remove one. */
-export function LectureChecklist({ chapter, onChange }: { chapter: Chapter; onChange: (c: Chapter) => void }) {
+export interface ChapterChoice {
+  id: string
+  name: string
+  ok: boolean // can receive a lecture (it has a list, or no lectures yet)
+}
+
+export function LectureChecklist({ chapter, onChange, chapters, onMoveTo }: { chapter: Chapter; onChange: (c: Chapter) => void; chapters?: ChapterChoice[]; onMoveTo?: (lecture: Lecture, toChapterId: string) => void }) {
   const list = chapter.lectures ?? []
   const [title, setTitle] = useState('')
   const [min, setMin] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
   const [eTitle, setETitle] = useState('')
   const [eMin, setEMin] = useState('')
+  const [eChap, setEChap] = useState(chapter.id)
   const write = (lectures: NonNullable<Chapter['lectures']>) => onChange({ ...chapter, lectures, totalLectures: lectures.length })
 
   const add = () => {
@@ -22,7 +29,13 @@ export function LectureChecklist({ chapter, onChange }: { chapter: Chapter; onCh
   }
   const saveEdit = (id: string) => {
     if (!eTitle.trim()) return
-    write(list.map((l) => (l.id === id ? { ...l, title: eTitle.trim(), minutes: Math.max(0, Math.round(num(eMin))) } : l)))
+    const edited = list.map((l) => (l.id === id ? { ...l, title: eTitle.trim(), minutes: Math.max(0, Math.round(num(eMin))) } : l))
+    if (eChap !== chapter.id && onMoveTo) {
+      // Take it out of this chapter and hand it to the chosen one.
+      const moving = edited.find((l) => l.id === id)!
+      write(edited.filter((l) => l.id !== id))
+      onMoveTo(moving, eChap)
+    } else write(edited)
     setEditing(null)
   }
 
@@ -36,6 +49,15 @@ export function LectureChecklist({ chapter, onChange }: { chapter: Chapter; onCh
                 <>
                   <input aria-label="Lecture title" className="inp min-w-40 flex-1" value={eTitle} onChange={(e) => setETitle(e.target.value)} />
                   <input aria-label="Length in minutes" type="number" min="0" inputMode="numeric" placeholder="min" className="inp tnum w-24" value={eMin} onChange={(e) => setEMin(e.target.value)} />
+                  {chapters && onMoveTo && (
+                    <select aria-label="Chapter" className="inp min-w-48 flex-1" value={eChap} onChange={(e) => setEChap(e.target.value)}>
+                      {chapters.map((c) => (
+                        <option key={c.id} value={c.id} disabled={!c.ok && c.id !== chapter.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <Button size="sm" variant="primary" onClick={() => saveEdit(l.id)}>
                     Save
                   </Button>
@@ -59,6 +81,7 @@ export function LectureChecklist({ chapter, onChange }: { chapter: Chapter; onCh
                       variant="ghost"
                       onClick={() => {
                         setEditing(l.id)
+                        setEChap(chapter.id)
                         setETitle(l.title)
                         setEMin(l.minutes ? String(l.minutes) : '')
                       }}

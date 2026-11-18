@@ -1,13 +1,14 @@
 import { Fragment, useState } from 'react'
 import { HBars } from '../components/charts'
-import { LectureChecklist } from '../components/LectureChecklist'
-import { Badge, Button, Card, Dot, Empty, PageHeader, Progress, Stat, num, useToast } from '../components/ui'
+import { LectureChecklist, type ChapterChoice } from '../components/LectureChecklist'
+import { WatchOrder } from '../components/WatchOrder'
+import { Badge, Button, Card, Dot, Empty, PageHeader, Progress, Seg, Stat, num, useToast } from '../components/ui'
 import { markLecture } from '../lib/actions'
 import type { ChapterStats } from '../lib/analytics'
 import { fmtDate, fmtHM } from '../lib/dates'
 import { LIST_INFO, planListImport, type ImportPlan, type ListKey } from '../lib/lectureLists'
 import { useStore } from '../lib/store'
-import type { Chapter } from '../lib/types'
+import type { Chapter, Lecture } from '../lib/types'
 
 export default function Lectures() {
   const { sum, put, putMany, data } = useStore()
@@ -15,11 +16,22 @@ export default function Lectures() {
   const [open, setOpen] = useState<string | null>(sum.ss[0]?.subject.id ?? null)
   const [openCh, setOpenCh] = useState<string | null>(null)
   const [q, setQ] = useState('')
+  // Per subject: by ICAI chapter, or in the order the faculty teaches (default when a lecture list is loaded).
+  const [view, setView] = useState<Record<string, 'order' | 'chapters'>>({})
   const [report, setReport] = useState<{ key: ListKey; plan: ImportPlan } | null>(null)
   const total = sum.ss.reduce((a, s) => a + s.totalLectures, 0)
   const done = sum.ss.reduce((a, s) => a + s.lecturesDone, 0)
   const unset = sum.cs.filter((c) => c.totalLectures === 0).length
   const save = (c: Chapter) => put('chapters', c)
+  const choices = (subjectId: string): ChapterChoice[] => sum.cs.filter((c) => c.chapter.subjectId === subjectId).sort((a, b) => a.chapter.order - b.chapter.order).map((c) => ({ id: c.chapter.id, name: c.chapter.name, ok: c.hasList || c.totalLectures === 0 }))
+  // Move a lecture into another chapter of the same subject (the chapter it leaves has already been saved without it).
+  const moveTo = (lecture: Lecture, toId: string) => {
+    const target = data.chapters.find((c) => c.id === toId)
+    if (!target) return
+    const lectures = [...(target.lectures ?? []), lecture]
+    put('chapters', { ...target, lectures, totalLectures: lectures.length })
+    toast(`Moved to ${target.name}`)
+  }
 
   const load = (key: ListKey) => {
     const plan = planListImport(data, key)
@@ -127,7 +139,21 @@ export default function Lectures() {
                 {s.subject.lectureTargetDate && <span className="text-xs text-ink-3">target {fmtDate(s.subject.lectureTargetDate)}</span>}
                 <span className="ml-auto text-ink-3">{isOpen ? '▾' : '▸'}</span>
               </button>
-              {isOpen && (
+              {isOpen && s.listedLectures > 0 && (
+                <div className="flex items-center justify-between gap-2 border-t-2 border-ink px-4 pt-3">
+                  <span className="text-xs font-bold uppercase tracking-wide text-ink-3">View</span>
+                  <Seg
+                    value={view[s.subject.id] ?? 'order'}
+                    onChange={(v) => setView({ ...view, [s.subject.id]: v })}
+                    options={[
+                      { id: 'order', label: 'Watching order' },
+                      { id: 'chapters', label: 'By chapter' },
+                    ]}
+                  />
+                </div>
+              )}
+              {isOpen && s.listedLectures > 0 && (view[s.subject.id] ?? 'order') === 'order' && !q && <WatchOrder chapters={s.chapters.map((c) => c.chapter)} onChange={save} />}
+              {isOpen && (s.listedLectures === 0 || (view[s.subject.id] ?? 'order') === 'chapters' || !!q) && (
                 <div className="overflow-x-auto border-t-2 border-ink">
                   <ul className="divide-y divide-line md:hidden">
                     {rows.map((c) => (
@@ -145,7 +171,7 @@ export default function Lectures() {
                           <span className="tnum text-xs text-ink-3">{c.lecturesLeft > 0 ? `${c.lecturesLeft} left · ≈ ${fmtHM(c.remainingMin ?? c.lecturesLeft * s.avgLectureMin)}` : c.totalLectures > 0 ? 'All watched' : ''}</span>
                           {toggle(c)}
                         </div>
-                        {openCh === c.chapter.id && <LectureChecklist chapter={c.chapter} onChange={save} />}
+                        {openCh === c.chapter.id && <LectureChecklist chapter={c.chapter} onChange={save} chapters={choices(s.subject.id)} onMoveTo={moveTo} />}
                       </li>
                     ))}
                   </ul>
@@ -185,7 +211,7 @@ export default function Lectures() {
                           {openCh === c.chapter.id && (
                             <tr>
                               <td colSpan={7} className="bg-surface-2">
-                                <LectureChecklist chapter={c.chapter} onChange={save} />
+                                <LectureChecklist chapter={c.chapter} onChange={save} chapters={choices(s.subject.id)} onMoveTo={moveTo} />
                               </td>
                             </tr>
                           )}

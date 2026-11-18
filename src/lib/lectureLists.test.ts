@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { markLecture, toggleLecture } from './actions'
 import { chapterStats, lecturesInRange, nextUp, summarize } from './analytics'
-import { LAW_EXTRA, parseAA, parseDT, parseDuration, parseLaw, planListImport } from './lectureLists'
+import { LAW_EXTRA, parseAA, parseDT, parseDuration, parseLaw, planListImport, watchOrder } from './lectureLists'
 import { seedRecords } from './seed'
 import { assemble } from './store'
 
@@ -239,5 +239,77 @@ describe('a subject that starts after another', () => {
   it('does not lock when the earlier subject has no lectures entered yet', () => {
     const d = fresh()
     expect(gst(d).locked).toBe(false)
+  })
+})
+
+describe('watching order', () => {
+  const loaded = (key: 'aa' | 'law' | 'dt') => {
+    const d = fresh()
+    const plan = planListImport(d, key)
+    d.chapters = [...d.chapters.map((c) => plan.chapters.find((x) => x.id === c.id) ?? c), ...plan.chapters.filter((x) => !d.chapters.some((c) => c.id === x.id))]
+    return d
+  }
+  it('Advanced Accounting runs 01 Part 1, 01 Part 2, 02 Part 1... exactly as your list, though they sit in different chapters', () => {
+    const d = loaded('aa')
+    const ord = watchOrder(d.chapters.filter((c) => c.subjectId === 'aa'))
+    expect(ord.map((o) => o.lecture.title)).toEqual(parseAA().map((l) => l.title))
+    expect(ord[0]).toMatchObject({ n: 1, chapter: { id: 'aa-01' } })
+    expect(ord[2].lecture.title).toBe('02 Part 1 - AS 2')
+    expect(ord[2].chapter.id).toBe('aa-05') // lecture 3 of the batch lives in "Assets Based Accounting Standards"
+    expect(ord[174].lecture.title).toBe('86 Part 2 - AS 11')
+  })
+  it('Direct Tax runs Day 1 to Day 63', () => {
+    const d = loaded('dt')
+    const ord = watchOrder(d.chapters.filter((c) => c.subjectId === 'dt'))
+    expect(ord.map((o) => o.lecture.title)).toEqual(parseDT().map((l) => l.title))
+    expect(ord[0].lecture.title).toBe('DAY -1 PART-1 BASIC AND INTRODUCATION')
+  })
+  it('Law follows the batch (General Clauses, Interpretation and FEMA come before LLP)', () => {
+    const d = loaded('law')
+    const ord = watchOrder(d.chapters.filter((c) => c.subjectId === 'law'))
+    expect(ord.map((o) => o.lecture.title)).toEqual(parseLaw().lectures.map((l) => l.title))
+    const chapterOrder = [...new Set(ord.map((o) => o.chapter.id))]
+    expect(chapterOrder.indexOf('law-13')).toBeLessThan(chapterOrder.indexOf('law-12'))
+    expect(chapterOrder.indexOf('law-15')).toBeLessThan(chapterOrder.indexOf('law-12'))
+  })
+  it('lectures you add yourself go last', () => {
+    const d = loaded('aa')
+    d.chapters = d.chapters.map((c) => (c.id === 'aa-01' ? { ...c, lectures: [...c.lectures!, { id: 'x', title: 'My extra', minutes: 30, done: false }] } : c))
+    const ord = watchOrder(d.chapters.filter((c) => c.subjectId === 'aa'))
+    expect(ord[ord.length - 1].lecture.title).toBe('My extra')
+  })
+  it('home suggestions and the next lecture follow it', () => {
+    const d = loaded('aa')
+    const s = summarize(d, '2026-11-20')
+    const n = nextUp(d, s, '2026-11-20', 8).find((x) => x.subjectId === 'aa')!
+    expect(n.title).toBe('Adv Acc: 01 Part 1 - Intro and Sch III')
+    expect(n.why).toContain('Lecture 1')
+    // watch the first two, and the next suggestion moves on to lecture 3, which is in a different chapter
+    d.chapters = d.chapters.map((c) => (c.id === 'aa-01' ? markLecture(c, 2) : c))
+    const n2 = nextUp(d, summarize(d, '2026-11-20'), '2026-11-20', 8).find((x) => x.subjectId === 'aa')!
+    expect(n2.title).toBe('Adv Acc: 02 Part 1 - AS 2')
+    expect(n2.chapterId).toBe('aa-05')
+    expect(n2.why).toContain('Lecture 3')
+  })
+})
+
+describe('lecture titles', () => {
+  it('are unique within each list, so the faculty order can be looked up by title', () => {
+    for (const list of [parseAA(), parseDT(), parseLaw().lectures]) {
+      const titles = list.map((l) => l.title)
+      expect(new Set(titles).size).toBe(titles.length)
+    }
+  })
+  it('a lecture moved to another chapter keeps its place in the watching order', () => {
+    const d = fresh()
+    const plan = planListImport(d, 'aa')
+    d.chapters = d.chapters.map((c) => plan.chapters.find((x) => x.id === c.id) ?? c)
+    const c1 = d.chapters.find((c) => c.id === 'aa-01')!
+    const moving = c1.lectures![1] // 01 Part 2 - Intro and Sch III
+    d.chapters = d.chapters.map((c) => (c.id === 'aa-01' ? { ...c, lectures: [c.lectures![0]], totalLectures: 1 } : c.id === 'aa-02' ? { ...c, lectures: [moving], totalLectures: 1 } : c))
+    const ord = watchOrder(d.chapters.filter((c) => c.subjectId === 'aa'))
+    expect(ord[1].lecture.title).toBe('01 Part 2 - Intro and Sch III')
+    expect(ord[1].chapter.id).toBe('aa-02')
+    expect(chapterStats(d).find((c) => c.chapter.id === 'aa-02')!.totalLectures).toBe(1)
   })
 })

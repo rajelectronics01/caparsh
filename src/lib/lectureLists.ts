@@ -216,3 +216,32 @@ export function planListImport(data: Data, key: ListKey): ImportPlan {
   plan.untouched = subjectChapters.filter((c) => !byChapter.has(c.id)).sort((a, b) => a.order - b.order).map((c) => c.name)
   return plan
 }
+
+// ---------- Watching order ----------
+let orderCache: Map<string, number> | null = null
+/** Position of each built-in lecture in the faculty's own sequence, keyed by title (titles are unique, so a lecture moved to another chapter keeps its place). */
+function builtInOrder() {
+  if (!orderCache) {
+    orderCache = new Map()
+    for (const list of [parseAA(), parseDT(), parseLaw().lectures]) list.forEach((l, i) => orderCache!.set(l.title, i))
+  }
+  return orderCache
+}
+
+export interface OrderedLecture {
+  chapter: Chapter
+  lecture: Lecture
+  /** 1-based place in the watching order. */
+  n: number
+}
+
+/** A subject's lectures in the order the faculty teaches them (not chapter by chapter). Lectures you added yourself come last. */
+export function watchOrder(chapters: Chapter[]): OrderedLecture[] {
+  const order = builtInOrder()
+  const flat: { chapter: Chapter; lecture: Lecture; pos: number }[] = []
+  for (const c of chapters) {
+    ;(c.lectures ?? []).forEach((lecture, i) => flat.push({ chapter: c, lecture, pos: order.get(lecture.title) ?? 100000 + c.order * 1000 + i }))
+  }
+  flat.sort((a, b) => a.pos - b.pos)
+  return flat.map((f, i) => ({ chapter: f.chapter, lecture: f.lecture, n: i + 1 }))
+}

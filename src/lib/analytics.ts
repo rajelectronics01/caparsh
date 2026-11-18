@@ -1,4 +1,5 @@
 import { addDays, diffDays, monthKey, rangeDays, weekStart } from './dates'
+import { watchOrder } from './lectureLists'
 import type { Activity, Chapter, Data, PlanItem, Session, Subject } from './types'
 import { PLAN_KINDS } from './types'
 
@@ -642,10 +643,26 @@ export function nextUp(data: Data, s: Summary, todayISO: string, n = 3): Suggest
     const cands = s.ss
       .filter((x) => !x.locked)
       .map((x) => ({ x, next: x.chapters.find((c) => !c.done) }))
-      .filter((c) => c.next)
+      .filter((c) => c.next || x_hasUndoneListed(c.x, data))
       .sort((a, b) => recent(a.x.subject.id) - recent(b.x.subject.id) || a.x.subject.order - b.x.subject.order)
     for (const { x, next } of cands) {
       if (out.length >= n) break
+      // With a faculty lecture list the suggestion is simply the next lecture in the order it is taught.
+      const ord = x.listedLectures > 0 ? watchOrder(x.chapters.map((c) => c.chapter)).find((o) => !o.lecture.done) : undefined
+      if (ord) {
+        const rec0 = recent(x.subject.id)
+        const nl0 = ord.lecture
+        out.push({
+          key: `next-${ord.chapter.id}-${nl0.id}`,
+          title: `${x.subject.short}: ${nl0.title}`,
+          why: `Lecture ${ord.n} · ${ord.chapter.name}${rec0 === 0 ? ' · not touched in 7 days' : ''}`,
+          subjectId: x.subject.id,
+          chapterId: ord.chapter.id,
+          activity: 'lecture',
+          minutes: nl0.minutes > 0 ? Math.round(nl0.minutes * (1 - Math.min(99, nl0.pct ?? 0) / 100)) : Math.round(x.avgLectureMin),
+        })
+        continue
+      }
       const c = next!
       const activity: Activity = !c.lecDone ? 'lecture' : !c.practiceDone ? 'practice' : 'revision'
       const nl = activity === 'lecture' ? c.chapter.lectures?.find((l) => !l.done) : undefined
@@ -701,4 +718,9 @@ export function minutesBySubject(data: Data, from: string, to: string): SubjectM
 /** One day's sessions in clock order; untimed sessions come last. */
 export function sessionsOn(data: Data, date: string): Session[] {
   return data.sessions.filter((s) => s.date === date).sort((a, b) => (a.start ?? '99:99').localeCompare(b.start ?? '99:99'))
+}
+
+/** True when a subject with a lecture list still has an unwatched lecture. */
+function x_hasUndoneListed(x: SubjectStats, data: Data) {
+  return x.listedLectures > 0 && watchOrder(data.chapters.filter((c) => c.subjectId === x.subject.id)).some((o) => !o.lecture.done)
 }
