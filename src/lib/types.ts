@@ -23,6 +23,8 @@ export interface Subject {
   order: number
   avgLectureMin: number // fallback estimate until real lecture sessions exist
   lectureTargetDate?: string // finish lectures by (drives the pace backlog)
+  /** Subject id whose lectures must be finished before this one starts (GST after Direct Tax). */
+  startsAfter?: string
 }
 
 export interface RevisionEntry {
@@ -146,6 +148,8 @@ export interface Settings {
   requiredRevisions: number // revisions needed before a chapter counts as Completed (1..3), used in 'full' focus
   /** 'lectures': only lecture progress counts (revision, practice and tests are parked). 'full': the complete rules. */
   focus: 'lectures' | 'full'
+  /** Get a push alert when a linked friend logs study. Needs alerts enabled on the device. */
+  friendAlerts: boolean
   collegeDays: number[] // 0=Sun..6=Sat
   collegeStart: string
   collegeEnd: string

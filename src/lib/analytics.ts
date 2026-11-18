@@ -171,11 +171,13 @@ export interface SubjectStats {
   minutes: number
   revisionPct: number
   behind: number // lectures behind the pace needed for the target date
+  locked: boolean // waiting for another subject's lectures to finish
+  startsAfterName?: string
   expected: number
 }
 
 export function subjectStats(data: Data, cs: ChapterStats[], todayISO: string): SubjectStats[] {
-  return [...data.subjects]
+  const stats = [...data.subjects]
     .sort((a, b) => a.order - b.order)
     .map((subject) => {
       const chapters = cs.filter((c) => c.chapter.subjectId === subject.id).sort((a, b) => a.chapter.order - b.chapter.order)
@@ -219,8 +221,22 @@ export function subjectStats(data: Data, cs: ChapterStats[], todayISO: string): 
         revisionPct: chapters.length ? (100 * sum(chapters.map((c) => c.revisionsDone))) / (3 * chapters.length) : 0,
         behind: Math.max(0, expected - lecturesDone),
         expected,
+        locked: false,
+        startsAfterName: undefined as string | undefined,
       }
     })
+  // A subject that starts after another (GST after Direct Tax) waits until that one's lectures are all watched.
+  for (const s of stats) {
+    const prev = s.subject.startsAfter ? stats.find((x) => x.subject.id === s.subject.startsAfter) : undefined
+    if (!prev) continue
+    s.startsAfterName = prev.subject.name
+    if (prev.totalLectures > 0 && prev.lecturesLeft > 0) {
+      s.locked = true
+      s.behind = 0 // no pace to keep while it is waiting
+      s.expected = 0
+    }
+  }
+  return stats
 }
 
 export interface Completion {
@@ -624,6 +640,7 @@ export function nextUp(data: Data, s: Summary, todayISO: string, n = 3): Suggest
   if (out.length < n) {
     const recent = (sid: string) => data.sessions.filter((x) => x.subjectId === sid && x.date > addDays(todayISO, -7)).reduce((a, x) => a + x.durationMin, 0)
     const cands = s.ss
+      .filter((x) => !x.locked)
       .map((x) => ({ x, next: x.chapters.find((c) => !c.done) }))
       .filter((c) => c.next)
       .sort((a, b) => recent(a.x.subject.id) - recent(b.x.subject.id) || a.x.subject.order - b.x.subject.order)

@@ -43,9 +43,13 @@ Reminders are sent by Supabase, not by the website host:
 
 On each phone: open the site, add it to the Home Screen, open it from the Home Screen icon, then *Menu → Settings → Daily alerts → Enable alerts on this device*. On iPhone this works only from the Home Screen icon (iOS 16.4 or later), not from a Safari tab.
 
+## Friend alerts
+
+When someone logs a new study session, their linked friends get a push notification: "Rohan did DT for 2h 30m. Tum bhi padho, warna tum gaye!". It is sent by `supabase/functions/notify-friends`, triggered by the database (`supabase/friend-alerts.sql`). At most one alert per friend every 15 minutes, only for sessions dated yesterday to tomorrow (so restoring a backup stays silent), and each person can switch it off in Settings. Friends need alerts enabled on their phone (see Phone reminders). It does not work in local mode.
+
 ## Lecture lists
 
-Each chapter can hold the faculty's recorded lectures with their real lengths. Ticking a lecture updates progress and the exact time left. The Lecture Tracker has buttons that load the Advanced Accounting (Akash Kandoi) and Corporate and Other Laws (Shubham Singhal) lists; running them again keeps what you have ticked. The source text is in `src/lib/data/`, and the mapping of lectures to chapters is in `src/lib/lectureLists.ts`. Logging a lecture session in a chapter with a list ticks the next lectures in order.
+Each chapter can hold the faculty's recorded lectures with their real lengths. Ticking a lecture updates progress and the exact time left. The Lecture Tracker has buttons that load the Advanced Accounting (Akash Kandoi), Direct Tax (BB Sir) and Corporate and Other Laws (Shubham Singhal) lists; running them again keeps what you have ticked. The source text is in `src/lib/data/`, and the mapping of lectures to chapters is in `src/lib/lectureLists.ts`. Logging a lecture session in a chapter with a list ticks the next lectures in order. A subject can be set to start after another (GST after Direct Tax): until the earlier one's lectures are all watched it has no pace target and no suggestions.
 
 ## Parked features
 

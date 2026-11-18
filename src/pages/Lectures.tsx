@@ -24,7 +24,7 @@ export default function Lectures() {
   const load = (key: ListKey) => {
     const plan = planListImport(data, key)
     if (!plan.chapters.length) return toast('Those chapters are not in this account, so nothing was loaded.', 'bad')
-    putMany(plan.chapters.map((c) => ({ collection: 'chapters' as const, id: c.id, data: c })))
+    putMany([...plan.chapters.map((c) => ({ collection: 'chapters' as const, id: c.id, data: c })), ...plan.subjects.map((s) => ({ collection: 'subjects' as const, id: s.id, data: s }))])
     setReport({ key, plan })
     setOpen(LIST_INFO[key].subjectId)
     toast(`Loaded ${plan.lectures} lectures into ${LIST_INFO[key].label}`)
@@ -84,6 +84,9 @@ export default function Lectures() {
               <p className="font-bold">
                 Loaded {report.plan.lectures} lectures ({fmtHM(report.plan.minutes)}) into {LIST_INFO[report.key].label}.
               </p>
+              {report.plan.notes.map((n) => (
+                <p key={n}>{n}</p>
+              ))}
               {report.plan.created.length > 0 && <p>Added chapter: {report.plan.created.join(', ')}.</p>}
               {report.plan.untouched.length > 0 && <p>No lectures in your list for: {report.plan.untouched.join('; ')}. They stay at 0 until you add lectures or delete the chapter.</p>}
               {report.plan.mismatches.length > 0 && <p>The platform shows more lectures than were in the list for: {report.plan.mismatches.map((m) => `${m.name} (${m.listed} of ${m.platform})`).join('; ')}. Use “Add lectures” on those chapters for the missing ones.</p>}
@@ -119,6 +122,7 @@ export default function Lectures() {
                 <span className="tnum text-sm text-ink-3">
                   {s.listedLectures > 0 ? `${fmtHM(s.listedMinutes)} listed · ` : ''}avg {fmtHM(s.avgLectureMin)}/lecture ({s.listedLectures > 0 ? 'from the list' : s.avgIsMeasured ? 'from your log' : 'estimate'}) · ≈ {fmtHM(s.remainingMin)} left to watch
                 </span>
+                {s.locked && <Badge tone="accent">Starts after {s.startsAfterName}</Badge>}
                 {s.behind > 0 && <Badge tone="warn">{s.behind} behind pace</Badge>}
                 {s.subject.lectureTargetDate && <span className="text-xs text-ink-3">target {fmtDate(s.subject.lectureTargetDate)}</span>}
                 <span className="ml-auto text-ink-3">{isOpen ? '▾' : '▸'}</span>

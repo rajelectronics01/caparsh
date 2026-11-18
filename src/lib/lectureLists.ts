@@ -1,6 +1,7 @@
-import type { Chapter, Data, Lecture } from './types'
+import type { Chapter, Data, Lecture, Subject } from './types'
 import { newChapter } from './seed'
 import aaRaw from './data/aa-lectures.txt?raw'
+import dtRaw from './data/dt-lectures.txt?raw'
 import lawRaw from './data/law-lectures.txt?raw'
 
 /** "1h 51m" -> 111, "55m" -> 55, "2h" -> 120. */
@@ -111,14 +112,53 @@ export function parseLaw(raw: string = lawRaw): LawParse {
   return { lectures, skipped, headerCounts }
 }
 
-export type ListKey = 'aa' | 'law'
+/**
+ * Direct Tax: which app chapter each "Day" belongs to, from the faculty's topic label.
+ * Tax rates and notes sit in Basic Concepts; AMT and the new tax regime in the final computation chapter.
+ */
+export function dtChapter(topic: string): string | null {
+  const t = topic.toLowerCase().trim()
+  if (t.startsWith('basic')) return 'dt-01'
+  if (t.includes('residential status')) return 'dt-02'
+  if (t.includes('salary')) return 'dt-03'
+  if (t.includes('house property')) return 'dt-04'
+  if (t.startsWith('pgbp')) return 'dt-05' // "PGBP And Clubbing of Income" starts with PGBP, so it is filed there
+  if (t.includes('capital gain')) return 'dt-06'
+  if (t.includes('other sources')) return 'dt-07'
+  if (t.includes('clubbing')) return 'dt-08'
+  if (t.includes('setoff') || t.includes('set off') || t.includes('set-off')) return 'dt-09'
+  if (t.includes('deduction')) return 'dt-10'
+  if (t.startsWith('return')) return 'dt-12' // "Return File And Adv Tax" starts with Return, so it is filed there
+  if (t.includes('adv tax') || t.includes('tds')) return 'dt-11'
+  if (t.includes('alternat') || t.includes('minimum tax')) return 'dt-13'
+  return null
+}
+
+export function parseDT(raw: string = dtRaw): ParsedLecture[] {
+  const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean)
+  const out: ParsedLecture[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^day\s*-\s*(\d+)\s*(?:part\s*-?\s*\d+\s*)?(.+)$/i.exec(lines[i])
+    if (!m) continue
+    const dur = lines[i + 1] && isDurationLine(lines[i + 1]) ? lines[i + 1] : ''
+    const chapterId = dtChapter(m[2])
+    if (!chapterId) throw new Error(`Unmapped Direct Tax topic: ${lines[i]}`)
+    out.push({ chapterId, title: lines[i], minutes: parseDuration(dur), pct: pctOf(dur) })
+    if (dur) i++
+  }
+  return out
+}
+
+export type ListKey = 'aa' | 'law' | 'dt'
 export const LIST_INFO: Record<ListKey, { subjectId: string; label: string; faculty: string }> = {
   aa: { subjectId: 'aa', label: 'Advanced Accounting', faculty: 'Akash Kandoi' },
   law: { subjectId: 'law', label: 'Corporate and Other Laws', faculty: 'Shubham Singhal' },
+  dt: { subjectId: 'dt', label: 'Income Tax (Direct Tax)', faculty: 'BB Sir' },
 }
 
 export function parsedFor(key: ListKey) {
   if (key === 'aa') return { lectures: parseAA(), skipped: [] as string[], headerCounts: {} as Record<string, number> }
+  if (key === 'dt') return { lectures: parseDT(), skipped: [] as string[], headerCounts: {} as Record<string, number> }
   return parseLaw()
 }
 
@@ -131,6 +171,8 @@ export interface ImportPlan {
   skipped: string[]
   mismatches: { chapterId: string; name: string; listed: number; platform: number }[]
   untouched: string[] // chapter names of the subject that the list has no lectures for
+  subjects: Subject[] // subjects to update alongside (GST waits for Direct Tax)
+  notes: string[]
 }
 
 /** Merge a faculty lecture list into the chapters. Re-running keeps what was already ticked (matched by title). */
@@ -140,7 +182,7 @@ export function planListImport(data: Data, key: ListKey): ImportPlan {
   const byChapter = new Map<string, ParsedLecture[]>()
   for (const l of parsed.lectures) byChapter.set(l.chapterId, [...(byChapter.get(l.chapterId) ?? []), l])
   const subjectChapters = data.chapters.filter((c) => c.subjectId === info.subjectId)
-  const plan: ImportPlan = { chapters: [], lectures: 0, minutes: 0, created: [], missing: [], skipped: parsed.skipped, mismatches: [], untouched: [] }
+  const plan: ImportPlan = { chapters: [], lectures: 0, minutes: 0, created: [], missing: [], skipped: parsed.skipped, mismatches: [], untouched: [], subjects: [], notes: [] }
   let nextOrder = Math.max(-1, ...subjectChapters.map((c) => c.order)) + 1
   for (const [chapterId, items] of byChapter) {
     let chapter = data.chapters.find((c) => c.id === chapterId)
@@ -163,6 +205,13 @@ export function planListImport(data: Data, key: ListKey): ImportPlan {
     plan.minutes += lectures.reduce((a, l) => a + l.minutes, 0)
     const platform = parsed.headerCounts[chapterId]
     if (platform != null && platform !== lectures.length) plan.mismatches.push({ chapterId, name: chapter.name, listed: lectures.length, platform })
+  }
+  if (key === 'dt') {
+    const gst = data.subjects.find((s) => s.id === 'gst')
+    if (gst && !gst.startsAfter) {
+      plan.subjects.push({ ...gst, startsAfter: 'dt' })
+      plan.notes.push('GST is now set to start after Direct Tax is finished.')
+    }
   }
   plan.untouched = subjectChapters.filter((c) => !byChapter.has(c.id)).sort((a, b) => a.order - b.order).map((c) => c.name)
   return plan

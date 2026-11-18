@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { markLecture, toggleLecture } from './actions'
-import { chapterStats, lecturesInRange, summarize } from './analytics'
-import { LAW_EXTRA, parseAA, parseDuration, parseLaw, planListImport } from './lectureLists'
+import { chapterStats, lecturesInRange, nextUp, summarize } from './analytics'
+import { LAW_EXTRA, parseAA, parseDT, parseDuration, parseLaw, planListImport } from './lectureLists'
 import { seedRecords } from './seed'
 import { assemble } from './store'
 
@@ -173,5 +173,71 @@ describe('calculations with a lecture list', () => {
     expect(s.avgLectureMin).toBeCloseTo(14587 / 175, 5)
     expect(s.avgLectureMin).toBeGreaterThan(75)
     expect(s.avgLectureMin).toBeLessThan(100)
+  })
+})
+
+describe('Direct Tax list', () => {
+  const dt = parseDT()
+  const by = (id: string) => dt.filter((l) => l.chapterId === id)
+  it('loads 64 lectures, 173h 27m, all with a length', () => {
+    expect(dt).toHaveLength(64)
+    expect(dt.every((l) => l.minutes > 0)).toBe(true)
+    expect(sum(dt.map((l) => l.minutes))).toBe(10407)
+    expect(dt[0]).toMatchObject({ title: 'DAY -1 PART-1 BASIC AND INTRODUCATION', minutes: 99 })
+    expect(dt[1].minutes).toBe(46)
+    expect(dt[58].title).toBe('Day -58 Adv Tax')
+    expect(dt[63]).toMatchObject({ title: 'Day -63 TDS TCS', minutes: 231 })
+  })
+  it('files every day under the right chapter', () => {
+    const counts = Object.fromEntries(Array.from({ length: 13 }, (_, i) => `dt-${String(i + 1).padStart(2, '0')}`).map((id) => [id, by(id).length]))
+    expect(counts).toEqual({ 'dt-01': 9, 'dt-02': 4, 'dt-03': 7, 'dt-04': 5, 'dt-05': 12, 'dt-06': 9, 'dt-07': 5, 'dt-08': 2, 'dt-09': 2, 'dt-10': 1, 'dt-11': 5, 'dt-12': 2, 'dt-13': 1 })
+  })
+  it('puts the mixed days where they start', () => {
+    expect(by('dt-05').some((l) => l.title.includes('PGBP And Clubbing'))).toBe(true)
+    expect(by('dt-12').some((l) => l.title.includes('Return File And Adv Tax'))).toBe(true)
+    expect(by('dt-13')[0].title).toContain('Alternat minimum tax')
+  })
+  it('imports into every Direct Tax chapter and tells GST to wait', () => {
+    const d = fresh()
+    d.subjects = d.subjects.map((x) => (x.id === 'gst' ? { ...x, startsAfter: undefined } : x)) // an older account without the rule
+    const plan = planListImport(d, 'dt')
+    expect(plan.lectures).toBe(64)
+    expect(plan.untouched).toEqual([])
+    expect(plan.chapters).toHaveLength(13)
+    expect(plan.subjects).toHaveLength(1)
+    expect(plan.subjects[0]).toMatchObject({ id: 'gst', startsAfter: 'dt' })
+  })
+})
+
+describe('a subject that starts after another', () => {
+  const setup = () => {
+    const d = fresh()
+    const dtPlan = planListImport(d, 'dt')
+    d.chapters = d.chapters.map((c) => dtPlan.chapters.find((x) => x.id === c.id) ?? c)
+    d.chapters = d.chapters.map((c) => (c.id === 'gst-01' ? { ...c, totalLectures: 10 } : c))
+    d.subjects = d.subjects.map((x) => (x.id === 'gst' ? { ...x, lectureTargetDate: '2026-12-01' } : x))
+    return d
+  }
+  const gst = (d: ReturnType<typeof fresh>) => summarize(d, '2026-11-25').ss.find((x) => x.subject.id === 'gst')!
+  it('new accounts have GST waiting for Direct Tax', () => {
+    expect(fresh().subjects.find((x) => x.id === 'gst')!.startsAfter).toBe('dt')
+  })
+  it('is locked with no pace and no suggestions while Direct Tax lectures remain', () => {
+    const d = setup()
+    expect(gst(d).locked).toBe(true)
+    expect(gst(d).startsAfterName).toBe('Income Tax (Direct Tax)')
+    expect(gst(d).behind).toBe(0)
+    const s = summarize(d, '2026-11-25')
+    expect(nextUp(d, s, '2026-11-25', 8).some((n) => n.subjectId === 'gst')).toBe(false)
+  })
+  it('unlocks the moment every Direct Tax lecture is watched', () => {
+    const d = setup()
+    d.chapters = d.chapters.map((c) => (c.subjectId === 'dt' ? markLecture(c, 999) : c))
+    expect(gst(d).locked).toBe(false)
+    expect(gst(d).behind).toBeGreaterThan(0)
+  })
+  it('does not lock when the earlier subject has no lectures entered yet', () => {
+    const d = fresh()
+    expect(gst(d).locked).toBe(false)
   })
 })

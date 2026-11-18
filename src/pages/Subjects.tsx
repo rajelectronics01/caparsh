@@ -8,13 +8,13 @@ import type { Subject } from '../lib/types'
 function SubjectForm({ s, onClose }: { s: Subject; onClose: () => void }) {
   const { put, data, setSettings } = useStore()
   const toast = useToast()
-  const [f, setF] = useState({ name: s.name, short: s.short, faculty: s.faculty, avg: String(s.avgLectureMin), target: s.lectureTargetDate ?? '', weekly: String(data.settings.weeklyTargets[s.id] ?? '') })
+  const [f, setF] = useState({ after: s.startsAfter ?? '', name: s.name, short: s.short, faculty: s.faculty, avg: String(s.avgLectureMin), target: s.lectureTargetDate ?? '', weekly: String(data.settings.weeklyTargets[s.id] ?? '') })
   const [err, setErr] = useState('')
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }))
   const save = () => {
     if (!f.name.trim() || !f.short.trim()) return setErr('Name and short name are required.')
     if (!(num(f.avg) > 0)) return setErr('Average lecture length must be more than zero minutes.')
-    put('subjects', { ...s, name: f.name.trim(), short: f.short.trim(), faculty: f.faculty.trim() || 'To be decided', avgLectureMin: num(f.avg), lectureTargetDate: f.target || undefined })
+    put('subjects', { ...s, name: f.name.trim(), short: f.short.trim(), faculty: f.faculty.trim() || 'To be decided', startsAfter: f.after || undefined, avgLectureMin: num(f.avg), lectureTargetDate: f.target || undefined })
     setSettings({ weeklyTargets: { ...data.settings.weeklyTargets, [s.id]: Math.max(0, num(f.weekly)) } })
     toast('Subject updated')
     onClose()
@@ -36,6 +36,18 @@ function SubjectForm({ s, onClose }: { s: Subject; onClose: () => void }) {
         </Field>
         <Field label="Weekly target (hours)">
           <input type="number" min="0" step="0.5" className="inp" value={f.weekly} onChange={(e) => set({ weekly: e.target.value })} />
+        </Field>
+        <Field label="Starts after" hint="Leave empty to start any time. GST starts after Direct Tax: it gets no pace target and no suggestions until that one's lectures are all watched." className="sm:col-span-2">
+          <select className="inp" value={f.after} onChange={(e) => set({ after: e.target.value })}>
+            <option value="">No, start any time</option>
+            {data.subjects
+              .filter((x) => x.id !== s.id)
+              .map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.name}
+                </option>
+              ))}
+          </select>
         </Field>
         <Field label="Finish lectures by" hint="Sets the pace. Falling behind it shows up as lecture backlog." className="sm:col-span-2">
           <input type="date" className="inp" value={f.target} onChange={(e) => set({ target: e.target.value })} />
@@ -108,7 +120,7 @@ export default function Subjects() {
                     <dd className="tnum text-right">{s.subject.lectureTargetDate ? fmtDate(s.subject.lectureTargetDate) : 'Not set'}</dd>
                   </dl>
                   <div className="mt-4 flex items-center justify-between">
-                    {s.behind > 0 ? <Badge tone="warn">{s.behind} lectures behind pace</Badge> : <span />}
+                    {s.locked ? <Badge tone="accent">Starts after {s.startsAfterName}</Badge> : s.behind > 0 ? <Badge tone="warn">{s.behind} lectures behind pace</Badge> : <span />}
                     <Link to={`/syllabus?s=${s.subject.id}`} className="text-sm font-bold text-accent underline">
                       Chapters →
                     </Link>

@@ -140,6 +140,10 @@ export default function Settings() {
           <Button size="sm" className="mt-3" onClick={() => setSettings({ reminders: [...s.reminders, { id: uid(), time: '20:00', label: 'Log today’s study', enabled: true }] })}>
             + Add reminder
           </Button>
+          <div className="mt-4">
+            <Check label="Alert me when a friend logs study" checked={s.friendAlerts !== false} onChange={(v) => setSettings({ friendAlerts: v })} />
+            <p className="text-[13px] text-ink-3">Sent to this account's devices, at most one per friend every 15 minutes. Needs alerts enabled below.</p>
+          </div>
           <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-4">
             <Badge tone={perm === 'granted' ? 'good' : perm === 'denied' ? 'bad' : 'neutral'}>{perm === 'granted' ? 'Notifications allowed' : perm === 'denied' ? 'Blocked in browser settings' : perm === 'unsupported' ? 'Not supported in this browser' : 'Not enabled yet'}</Badge>
             {perm !== 'unsupported' && (
