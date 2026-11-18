@@ -75,7 +75,7 @@ describe('lectures-only focus (default)', () => {
     const d = lectureMode()
     d.subjects = d.subjects.map((x) => (x.id === 'aa' ? { ...x, lectureTargetDate: '2026-11-25' } : x))
     ch(d, 'aa-01', { totalLectures: 10 })
-    expect(summarize(d, '2026-11-20').lecturesBehind).toBe(5)
+    expect(summarize(d, '2026-11-20').lecturesBehind).toBe(4) // started 16 Nov: 4 of 9 days gone, floor(10 x 4/9) = 4
   })
 })
 

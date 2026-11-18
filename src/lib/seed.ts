@@ -139,7 +139,7 @@ export function defaultSettings(): Settings {
   return {
     id: 'settings',
     examDate: '2027-09-01',
-    startDate: '2026-11-15',
+    startDate: '2026-11-16',
     dailyTargetHours: { normal: 5, busy: 3, exam: 1, holiday: 8 },
     weeklyTargets: {},
     requiredRevisions: 1,

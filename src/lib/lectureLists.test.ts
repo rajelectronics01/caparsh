@@ -419,27 +419,28 @@ describe('the daily Group 1 plan', () => {
     expect(r.find((x) => x.subject.id === 'gst')).toMatchObject({ locked: true, startsAfterName: 'Income Tax (Direct Tax)' })
     expect(r.find((x) => x.subject.id === 'aa')!.next!.label).toBe('Lecture 01')
   })
-  it('counts one lecture a day from the preparation start: 3 days behind on the 18th with nothing watched', () => {
-    const d = load() // preparation starts 15 Nov
-    expect(row(d, '2026-11-18', 'aa')).toMatchObject({ behind: 3, unitsDone: 0, unitsTotal: 86 })
-    expect(row(d, '2026-11-15', 'aa').behind).toBe(0) // the first day: today's lecture is not behind yet
-    expect(row(d, '2026-11-14', 'aa').behind).toBe(0) // before the start
+  it('counts one lecture a day from the preparation start (16 Nov): 2 days behind on the 18th with nothing watched', () => {
+    const d = load() // preparation starts 16 Nov
+    expect(d.settings.startDate).toBe('2026-11-16')
+    expect(row(d, '2026-11-18', 'aa')).toMatchObject({ behind: 2, unitsDone: 0, unitsTotal: 86 }) // the 16th and 17th
+    expect(row(d, '2026-11-16', 'aa').behind).toBe(0) // the first day: today's lecture is not behind yet
+    expect(row(d, '2026-11-15', 'aa').behind).toBe(0) // before the start
   })
   it('watching today\'s lecture does not clear days already missed; catching up does', () => {
     const d = load()
     finish(d, 'aa', 1, '2026-11-18')
     let a = row(d, '2026-11-18', 'aa')
     expect(a.doneToday).toHaveLength(1)
-    expect(a.behind).toBe(3) // 15th, 16th, 17th still owed
-    finish(d, 'aa', 4, '2026-11-18') // four lectures today = caught up
+    expect(a.behind).toBe(2) // 16th and 17th still owed
+    finish(d, 'aa', 3, '2026-11-18') // three lectures today (today's plus the two owed) = caught up
     a = row(d, '2026-11-18', 'aa')
     expect(a.behind).toBe(0)
-    expect(a.next!.label).toBe('Lecture 05')
+    expect(a.next!.label).toBe('Lecture 04') // lectures 01 to 03 are watched
   })
   it('lectures watched on earlier days count towards the plan', () => {
     const d = load()
-    finish(d, 'law', 2, '2026-11-16')
-    expect(row(d, '2026-11-18', 'law')).toMatchObject({ unitsDone: 2, behind: 1, doneToday: [] }) // owed 4-2=2, minus today's own
+    finish(d, 'law', 1, '2026-11-16')
+    expect(row(d, '2026-11-18', 'law')).toMatchObject({ unitsDone: 1, behind: 1, doneToday: [] }) // 3 days so far, 1 watched: 2 owed, minus today's own
   })
   it('a half-watched lecture is not done', () => {
     const d = load()
@@ -464,11 +465,11 @@ describe('the daily Group 1 plan', () => {
     const d = load()
     const s = summarize(d, '2026-11-18')
     const item = s.backlog.find((b) => b.key === 'daily-aa')!
-    expect(item.title).toBe('Adv Acc: 3 lectures behind the one-a-day plan')
-    const units3 = lectureUnits(d.chapters.filter((c) => c.subjectId === 'aa')).slice(0, 3)
-    expect(item.minutes).toBeCloseTo(units3.reduce((a, u) => a + unitRemainingMin(u, 83), 0), 0)
+    expect(item.title).toBe('Adv Acc: 2 lectures behind the one-a-day plan')
+    const units2 = lectureUnits(d.chapters.filter((c) => c.subjectId === 'aa')).slice(0, 2)
+    expect(item.minutes).toBeCloseTo(units2.reduce((a, u) => a + unitRemainingMin(u, 83), 0), 0)
     expect(s.backlog.some((b) => b.key === 'lec-aa')).toBe(false) // no second, target-date item for it
-    expect(s.lecturesBehind).toBe(3 + 3 + 3) // Adv Acc, Law and Direct Tax
+    expect(s.lecturesBehind).toBe(2 + 2 + 2) // Adv Acc, Law and Direct Tax
     expect(backlog(d, s.cs, s.ss, '2026-11-18').filter((b) => b.key.startsWith('daily-'))).toHaveLength(3)
   })
 })
